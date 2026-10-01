@@ -211,29 +211,37 @@ func at(v []float64, i int) float64 {
 const degToRad = math.Pi / 180
 
 // rotationMatrix is a bone's or cube's rotation in model space: X, then Y,
-// then Z, with the X and Z angles negated - Blockbench's (-x, -y, z) seen back
-// through the X mirror addCube applies last. See
-// docs/geometry-format.md#rotation.
+// then Z. In standard right-handed terms it is Rz(-z)·Ry(y)·Rx(-x) -
+// Blockbench's (-x, -y, z) seen back through the X mirror addCube applies
+// last - which tips a bone's top forward for a positive X, as Minecraft's own
+// sneak does. fauxgl's Rotate turns the opposite way to the standard
+// rotation (its matrix is the transpose), so the signs here are +x, -y, +z.
+// See docs/geometry-format.md#rotation.
 func rotationMatrix(r []float64) fauxgl.Matrix {
 	return fauxgl.Identity().
-		Rotate(fauxgl.Vector{X: 1}, -at(r, 0)*degToRad).
-		Rotate(fauxgl.Vector{Y: 1}, at(r, 1)*degToRad).
-		Rotate(fauxgl.Vector{Z: 1}, -at(r, 2)*degToRad)
+		Rotate(fauxgl.Vector{X: 1}, at(r, 0)*degToRad).
+		Rotate(fauxgl.Vector{Y: 1}, -at(r, 1)*degToRad).
+		Rotate(fauxgl.Vector{Z: 1}, at(r, 2)*degToRad)
 }
 
 // boneLocalMatrix builds a bone's local transform: its rotation (see
 // rotationMatrix) about the bone's own origin, then a translation by
-// ownPivot-parentPivot.
-func boneLocalMatrix(b Bone, parentPivot []float64) fauxgl.Matrix {
+// ownPivot-parentPivot. A pose adds its rotation to the bone's and its
+// position to the offset (see Pose).
+func boneLocalMatrix(b Bone, parentPivot []float64, p BonePose) fauxgl.Matrix {
 	own := b.Pivot
 	offset := fauxgl.Vector{
-		X: at(own, 0) - at(parentPivot, 0),
-		Y: at(own, 1) - at(parentPivot, 1),
-		Z: at(own, 2) - at(parentPivot, 2),
+		X: at(own, 0) - at(parentPivot, 0) + p.Position[0],
+		Y: at(own, 1) - at(parentPivot, 1) + p.Position[1],
+		Z: at(own, 2) - at(parentPivot, 2) + p.Position[2],
 	}
+	rot := []float64{at(b.Rotation, 0) + p.Rotation[0], at(b.Rotation, 1) + p.Rotation[1], at(b.Rotation, 2) + p.Rotation[2]}
 	m := fauxgl.Identity()
-	if len(b.Rotation) >= 3 {
-		m = rotationMatrix(b.Rotation)
+	if p.Scaled {
+		m = m.Scale(fauxgl.Vector{X: p.Scale[0], Y: p.Scale[1], Z: p.Scale[2]})
+	}
+	if rot[0] != 0 || rot[1] != 0 || rot[2] != 0 {
+		m = rotationMatrix(rot).Mul(m)
 	}
 	m = m.Translate(offset)
 	return m
@@ -245,7 +253,7 @@ func boneLocalMatrix(b Bone, parentPivot []float64) fauxgl.Matrix {
 // resolve to identity rather than recursing forever.
 //
 // See docs/rendering-pipeline.md for the stage-by-stage walkthrough.
-func boneWorldMatrices(geo Geometry) map[string]fauxgl.Matrix {
+func boneWorldMatrices(geo Geometry, pose Pose) map[string]fauxgl.Matrix {
 	byName := map[string]Bone{}
 	for _, b := range geo.Bones {
 		byName[b.Name] = b
@@ -269,7 +277,7 @@ func boneWorldMatrices(geo Geometry) map[string]fauxgl.Matrix {
 				parentWorld = resolve(b.Parent, seen)
 			}
 		}
-		local := boneLocalMatrix(b, parentPivot)
+		local := boneLocalMatrix(b, parentPivot, pose.of(b.Name))
 		world := parentWorld.Mul(local)
 		result[name] = world
 		return world
@@ -281,9 +289,10 @@ func boneWorldMatrices(geo Geometry) map[string]fauxgl.Matrix {
 }
 
 // buildTriangles builds fauxgl triangles for every cube in geo whose bone
-// name passes includeBone (nil = include everything).
-func buildTriangles(geo Geometry, includeBone func(name string) bool) []*fauxgl.Triangle {
-	worlds := boneWorldMatrices(geo)
+// name passes includeBone (nil = include everything), posed by pose (nil is
+// the rest pose).
+func buildTriangles(geo Geometry, includeBone func(name string) bool, pose Pose) []*fauxgl.Triangle {
+	worlds := boneWorldMatrices(geo, pose)
 	var triangles []*fauxgl.Triangle
 	for _, b := range geo.Bones {
 		if includeBone != nil && !includeBone(b.Name) {

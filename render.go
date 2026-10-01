@@ -256,7 +256,7 @@ func rasterize(triangles, capeTriangles []*fauxgl.Triangle, texture, capeTexture
 // buildCapeTriangles builds the cape mesh. A cape entry is its own
 // self-contained bone chain (body -> waist -> cape), so it positions itself
 // from parent names within capeGeo alone.
-func buildCapeTriangles(capeGeo Geometry) []*fauxgl.Triangle {
+func buildCapeTriangles(capeGeo Geometry, pose Pose) []*fauxgl.Triangle {
 	include := func(name string) bool { return name == "cape" }
-	return buildTriangles(capeGeo, include)
+	return buildTriangles(capeGeo, include, pose)
 }

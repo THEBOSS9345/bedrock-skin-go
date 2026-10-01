@@ -31,6 +31,9 @@ mesh.go             bone matrices, cubes -> triangles, UV resolution
 render.go           bone scoping, camera, rasterization internals
 render_options.go   Options and Render, the public entry point
 render2d.go         flat fallback for persona skins
+animation.go        poses, the built-in motions, RenderFrames/RenderGIF
+animfile.go         Bedrock animation files (Blockbench exports)
+molang.go           the Molang subset animation files use
 shader.go           the unlit alpha-tested shader
 bytes.go            byte-oriented API and image helpers
 invisible.go        invisibility/tiny-geometry detection internals
@@ -42,6 +45,7 @@ detect.go           Skin, the public detection API
 Several things here are deliberate and were each a real bug once. Every one is documented in [docs/design-decisions.md](docs/design-decisions.md) with its failure mode. Do not "clean these up" without reading that page:
 
 - **X is negated at the end of mesh building**, with each face's U flipped to match. Bedrock model space is X-mirrored against the world; without it every model is a mirror image of the game's, which nearly symmetric skins hide.
+- **`rotationMatrix` passes `+x, -y, +z` to fauxgl.** fauxgl's `Rotate` turns the opposite way to the standard rotation; these signs produce the game's convention. `TestRotationDirections` fails with any other.
 - **The V coordinate is pre-flipped** in `mesh.go`. It cancels fauxgl's internal `v = 1 - v`. Removing it does not produce an upside-down image — it produces a random-looking transparent/opaque mess.
 - **The shader matrix stops after `Perspective`.** Adding `.Viewport(...)` renders a completely blank image.
 - **The shader discards rather than blends.** Blending would make the overlay layer occlude the body.
