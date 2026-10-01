@@ -66,6 +66,7 @@ A geometry file almost always holds more than one entry. A real capture contains
   "pivot": [5, 22, 0],
   "rotation": [0, 0, 0],
   "inflate": 0,
+  "mirror": false,
   "cubes": [ ... ]
 }
 ```
@@ -75,8 +76,9 @@ A geometry file almost always holds more than one entry. A real capture contains
 | `name` | Unique within the entry. Referenced by parents and by bone scoping. |
 | `parent` | Name of the parent bone, or absent for a root. |
 | `pivot` | The point this bone rotates around, in model space. |
-| `rotation` | Degrees around X, Y, Z. |
+| `rotation` | Degrees around X, Y, Z, about `pivot`. See [Rotation](#rotation). |
 | `inflate` | Grows every cube in the bone outward by this much on all sides. |
+| `mirror` | Mirrors every cube in the bone (a cube's own `mirror: true` does too). |
 | `cubes` | May be absent or empty — plenty of bones are pure structure. |
 
 Bones with no cubes are completely normal. In the vanilla model, `root`, `waist`, `cape`, `leftItem` and `rightItem` all carry no geometry; they exist to position other things.
@@ -101,7 +103,9 @@ Custom skins add their own bones to this — ears, tails, wings, hats — parent
   "size": [8, 8, 8],
   "uv": [0, 0],
   "inflate": 0.25,
-  "mirror": false
+  "mirror": false,
+  "rotation": [0, 0, 45],
+  "pivot": [0, 28, 0]
 }
 ```
 
@@ -111,7 +115,9 @@ Custom skins add their own bones to this — ears, tails, wings, hats — parent
 | `size` | Extent along X, Y, Z. |
 | `uv` | Where the cube's faces live in the texture. Two possible forms — below. |
 | `inflate` | Overrides the bone's inflate for this cube. |
-| `mirror` | Flips the east/west faces' horizontal texture direction. |
+| `mirror` | Mirrors the cube's texture left to right: every face flips, and east and west trade places. Also set by the bone's `mirror`. |
+| `rotation` | Degrees around X, Y, Z, turning the cube about `pivot`. See [Rotation](#rotation). |
+| `pivot` | The point the cube turns around, in model space. Defaults to the cube's centre. |
 
 ### Inflate and the layer system
 
@@ -168,10 +174,14 @@ Faces that are absent are simply not drawn. This form is used by custom models w
 
 Both forms give coordinates in **texture pixels**, not normalized 0–1. Conversion to normalized coordinates uses the entry's declared `texture_width` / `texture_height`, which is why those fields matter and why a mismatch between declared and actual texture size skews the whole model.
 
-## Bone rotation: the one unverified corner
+Real captured geometry sometimes leaves those fields out entirely (seen in format `1.21.0` and `1.8.0` files). Minecraft reads that as 64×64, and so does `ParseGeometry`. Left at zero, every UV divides by zero and the model renders blank, with no error.
 
-Local transforms are built as: rotate around X, then Y, then Z, about the bone's own origin; then translate by `ownPivot - parentPivot`.
+## Rotation
 
-This matches the reference browser implementation, but it is **the one part of this library not confirmed against real data** — every skin captured so far has `rotation: [0, 0, 0]` on every bone, so nothing has exercised it. If you have a skin with genuinely rotated bones and it renders wrong, the axis order or a sign convention here is the first place to look.
+Bones and cubes rotate the same way: in degrees, around X, then Y, then Z, about their pivot. A bone's local transform is that rotation about its own origin, then a translation by `ownPivot - parentPivot`; a cube turns about its own `pivot` (its centre if absent) before its bone's transform.
+
+Model space is X-mirrored against the world it is drawn in, so in model space the X and Z angles are negated (see [rendering-pipeline.md](rendering-pipeline.md#model-space-is-x-mirrored)). That is the convention of Blockbench, the reference Bedrock model editor, which loads `rotation: [x, y, z]` as `(-x, -y, z)` in its mirrored world.
+
+This was long the one unverified corner: the first captures all had `rotation: [0, 0, 0]`. It has since been checked against real captured geometry with rotated bones and cubes (a CubeCraft galaxy costume with tilted rings, planets and stars; Hive and Galaxite cosmetics), which render as coherent designs only with this convention; earlier renders drew rotated cubes square-on and turned bones the wrong way about X and Z. `TestCubeRotation` pins the cube case with a procedural model.
 
 Everything else in this document was verified against captures.

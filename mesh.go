@@ -112,7 +112,13 @@ var faceOrder = []string{"up", "down", "north", "south", "east", "west"}
 // addCube appends one cube's 6 faces as fauxgl triangles (2 per face) to
 // triangles, with vertex positions transformed by worldMatrix (the owning
 // bone's world transform) and UVs in 0..1 texture space.
-func addCube(triangles *[]*fauxgl.Triangle, c Cube, bonePivot []float64, boneInflate float64, worldMatrix fauxgl.Matrix, texW, texH float64) {
+//
+// Positions are worked out in model space, the cube's own rotation then the
+// bone's, and X is negated last: model space is X-mirrored against the
+// world. Each face's U is flipped to match, so textures still read the right
+// way round. See docs/rendering-pipeline.md#model-space-is-x-mirrored.
+func addCube(triangles *[]*fauxgl.Triangle, c Cube, b Bone, worldMatrix fauxgl.Matrix, texW, texH float64) {
+	bonePivot, boneInflate := b.Pivot, b.Inflate
 	size, origin, ok := cubeDims(c)
 	if !ok {
 		return
@@ -135,21 +141,43 @@ func addCube(triangles *[]*fauxgl.Triangle, c Cube, bonePivot []float64, boneInf
 		origin[1] + size[1]/2,
 		origin[2] + size[2]/2,
 	}
-	centerLocal := fauxgl.Vector{
-		X: centerAbs[0] - at(bonePivot, 0),
-		Y: centerAbs[1] - at(bonePivot, 1),
-		Z: centerAbs[2] - at(bonePivot, 2),
+	center := fauxgl.Vector{X: centerAbs[0], Y: centerAbs[1], Z: centerAbs[2]}
+	pivotBone := fauxgl.Vector{X: at(bonePivot, 0), Y: at(bonePivot, 1), Z: at(bonePivot, 2)}
+	place := func(local fauxgl.Vector) fauxgl.Vector {
+		p := center.Add(local)
+		if len(c.Rotation) >= 3 && (c.Rotation[0] != 0 || c.Rotation[1] != 0 || c.Rotation[2] != 0) {
+			pivot := center
+			if len(c.Pivot) >= 3 {
+				pivot = fauxgl.Vector{X: c.Pivot[0], Y: c.Pivot[1], Z: c.Pivot[2]}
+			}
+			p = rotationMatrix(c.Rotation).MulPosition(p.Sub(pivot)).Add(pivot)
+		}
+		p = worldMatrix.MulPosition(p.Sub(pivotBone))
+		p.X = -p.X
+		return p
 	}
+	// A cube mirrors when it or its bone says so.
+	mirror := c.Mirror || b.Mirror
 
 	corners := [4][2]float64{{-1, -1}, {1, -1}, {1, 1}, {-1, 1}}
 
 	for _, face := range faceOrder {
-		rect, ok := rects[face]
+		// Mirroring flips the cube's texture left to right: east and west
+		// trade places, and every face flips.
+		src := face
+		if mirror && face == "east" {
+			src = "west"
+		} else if mirror && face == "west" {
+			src = "east"
+		}
+		rect, ok := rects[src]
 		if !ok {
 			continue
 		}
 		u0, v0, u1, v1 := rect.x, rect.y, rect.x+rect.w, rect.y+rect.h
-		if c.Mirror && (face == "east" || face == "west") {
+		// Negating X flips every face; flipping U puts it back. A mirrored
+		// cube's own flip cancels that.
+		if !mirror {
 			u0, u1 = u1, u0
 		}
 		uvCorners := [4][2]float64{{u0, v1}, {u1, v1}, {u1, v0}, {u0, v0}}
@@ -157,9 +185,8 @@ func addCube(triangles *[]*fauxgl.Triangle, c Cube, bonePivot []float64, boneInf
 		var verts [4]fauxgl.Vertex
 		for i := 0; i < 4; i++ {
 			local := faceCorner(face, corners[i][0], corners[i][1], hx, hy, hz)
-			pos := centerLocal.Add(local)
 			verts[i] = fauxgl.Vertex{
-				Position: worldMatrix.MulPosition(pos),
+				Position: place(local),
 				// V is pre-flipped to cancel fauxgl's internal v=1-v. Do not
 				// "simplify" this away: the failure mode is a random-looking
 				// transparent/opaque pattern, not a cleanly mirrored image.
@@ -183,12 +210,20 @@ func at(v []float64, i int) float64 {
 
 const degToRad = math.Pi / 180
 
-// boneLocalMatrix builds a bone's local transform: rotate X, then Y, then Z
-// about the bone's own origin, then translate by ownPivot-parentPivot.
-//
-// The rotation axis order and signs are the one part of this library not
-// verified against real data - every skin captured so far has rotation==0 on
-// every bone. See docs/geometry-format.md for the details.
+// rotationMatrix is a bone's or cube's rotation in model space: X, then Y,
+// then Z, with the X and Z angles negated - Blockbench's (-x, -y, z) seen back
+// through the X mirror addCube applies last. See
+// docs/geometry-format.md#rotation.
+func rotationMatrix(r []float64) fauxgl.Matrix {
+	return fauxgl.Identity().
+		Rotate(fauxgl.Vector{X: 1}, -at(r, 0)*degToRad).
+		Rotate(fauxgl.Vector{Y: 1}, at(r, 1)*degToRad).
+		Rotate(fauxgl.Vector{Z: 1}, -at(r, 2)*degToRad)
+}
+
+// boneLocalMatrix builds a bone's local transform: its rotation (see
+// rotationMatrix) about the bone's own origin, then a translation by
+// ownPivot-parentPivot.
 func boneLocalMatrix(b Bone, parentPivot []float64) fauxgl.Matrix {
 	own := b.Pivot
 	offset := fauxgl.Vector{
@@ -198,9 +233,7 @@ func boneLocalMatrix(b Bone, parentPivot []float64) fauxgl.Matrix {
 	}
 	m := fauxgl.Identity()
 	if len(b.Rotation) >= 3 {
-		m = m.Rotate(fauxgl.Vector{X: 1}, at(b.Rotation, 0)*degToRad)
-		m = m.Rotate(fauxgl.Vector{Y: 1}, at(b.Rotation, 1)*degToRad)
-		m = m.Rotate(fauxgl.Vector{Z: 1}, at(b.Rotation, 2)*degToRad)
+		m = rotationMatrix(b.Rotation)
 	}
 	m = m.Translate(offset)
 	return m
@@ -258,7 +291,7 @@ func buildTriangles(geo Geometry, includeBone func(name string) bool) []*fauxgl.
 		}
 		world := worlds[b.Name]
 		for _, c := range b.Cubes {
-			addCube(&triangles, c, b.Pivot, b.Inflate, world, geo.TextureWidth, geo.TextureHeight)
+			addCube(&triangles, c, b, world, geo.TextureWidth, geo.TextureHeight)
 		}
 	}
 	return triangles

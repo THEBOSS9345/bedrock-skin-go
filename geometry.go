@@ -16,6 +16,7 @@ type Bone struct {
 	Pivot    []float64 `json:"pivot,omitempty"`
 	Rotation []float64 `json:"rotation,omitempty"`
 	Inflate  float64   `json:"inflate,omitempty"`
+	Mirror   bool      `json:"mirror,omitempty"`
 	Cubes    []Cube    `json:"cubes,omitempty"`
 }
 
@@ -25,6 +26,11 @@ type Cube struct {
 	UV      json.RawMessage `json:"uv"`
 	Inflate *float64        `json:"inflate,omitempty"`
 	Mirror  bool            `json:"mirror,omitempty"`
+	// Rotation turns the cube about Pivot, in degrees; Pivot is in model
+	// space and defaults to the cube's centre. See
+	// docs/geometry-format.md#rotation.
+	Rotation []float64 `json:"rotation,omitempty"`
+	Pivot    []float64 `json:"pivot,omitempty"`
 }
 
 // Geometry is one normalized model - a body, a cape - regardless of which of
@@ -121,8 +127,8 @@ func ParseGeometry(raw []byte) ([]Geometry, error) {
 		for i, g := range modern.MinecraftGeometry {
 			out[i] = Geometry{
 				Identifier:    g.Description.Identifier,
-				TextureWidth:  g.Description.TextureWidth,
-				TextureHeight: g.Description.TextureHeight,
+				TextureWidth:  textureSize(g.Description.TextureWidth),
+				TextureHeight: textureSize(g.Description.TextureHeight),
 				Bones:         g.Bones,
 			}
 		}
@@ -144,8 +150,8 @@ func ParseGeometry(raw []byte) ([]Geometry, error) {
 		}
 		out = append(out, Geometry{
 			Identifier:    key,
-			TextureWidth:  entry.TextureWidth,
-			TextureHeight: entry.TextureHeight,
+			TextureWidth:  textureSize(entry.TextureWidth),
+			TextureHeight: textureSize(entry.TextureHeight),
 			Bones:         entry.Bones,
 		})
 	}
@@ -154,6 +160,17 @@ func ParseGeometry(raw []byte) ([]Geometry, error) {
 	// See docs/design-decisions.md#why-legacy-entries-are-sorted.
 	sort.Slice(out, func(i, j int) bool { return out[i].Identifier < out[j].Identifier })
 	return out, nil
+}
+
+// textureSize is a declared texture dimension, or Minecraft's default of 64
+// when the geometry leaves it out - real captures do. Left at zero, every UV
+// divides by zero and the model renders blank. See
+// docs/geometry-format.md#coordinates-are-in-texture-pixels.
+func textureSize(v float64) float64 {
+	if v > 0 {
+		return v
+	}
+	return 64
 }
 
 // SelectGeometry picks the entry matching identifier, falling back to the one

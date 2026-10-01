@@ -62,6 +62,12 @@ The process: decode a real skin's texture with a proper PNG decoder, confirm the
 
 Worth noting how that was nearly missed — an earlier hand-rolled PNG parser that skipped per-row filter bytes produced corrupted pixel data and pointed at the wrong conclusion. If you are verifying claims like this, use a real decoder.
 
+## Why X is negated at the end of mesh building
+
+Bedrock model space is X-mirrored against the world. Built as written, every model is a mirror image of the game's: the right arm on the viewer's right, one-sided details on the wrong side, rotations turning the wrong way. `addCube` negates X as its last step and flips each face's U to keep textures readable, matching Blockbench's import of Bedrock models.
+
+Removing the negation does not look broken on most skins — they are nearly symmetric — which is why it survived so long. It shows on asymmetric skins and on custom models with rotated parts. `TestRightArmOnViewersLeft` fails without it. The camera's yaw is negated to match, so positive yaw still swings toward the model's left (`TestPositiveYawShowsModelsLeft`).
+
 ## Why the V coordinate is pre-flipped
 
 fauxgl's `Texture.Sample` internally computes `v = 1 - v`, following OpenGL's bottom-up convention. UV rectangles here are computed top-down, matching PNG row order and the geometry format. So the vertex builder pre-flips V to cancel fauxgl's flip.
