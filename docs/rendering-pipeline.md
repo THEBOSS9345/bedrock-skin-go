@@ -58,14 +58,23 @@ Inflate grows the cube on **both** sides of each axis, so the size grows by twic
 
 ### Positioning
 
-Vertices are built around the cube's centre, expressed relative to the owning bone's pivot:
+Vertices are built around the cube's centre in model space, turned by the cube's own rotation about its pivot, then expressed relative to the owning bone's pivot:
 
 ```go
-centerAbs   = origin + size/2
-centerLocal = centerAbs − bonePivot
+corner = (origin + size/2) + faceCorner
+corner = cubePivot + cubeRotation × (corner − cubePivot)   // if the cube rotates
+local  = corner − bonePivot
+world  = boneWorld × local
+world.X = −world.X                                           // see below
 ```
 
-The bone's world matrix then maps that into model space. Working relative to the pivot is what lets the same cube data sit correctly under any bone transform.
+Working relative to the pivot is what lets the same cube data sit correctly under any bone transform.
+
+### Model space is X-mirrored
+
+Bedrock geometry's X axis runs the opposite way to the world it is drawn in. Drawn as written, the right arm (`rightArm`, at negative X, textured from `40,16`) lands on the viewer's right — a mirror image of what the game shows, where facing a player their right arm is on your left. Blockbench negates X when it loads a Bedrock model for the same reason.
+
+So every vertex has its X negated as the last step. Negating X also mirrors every face's texture, so each face's U is flipped to put it back the right way round, and rotations turn the other way about X and Z (see [geometry-format.md](geometry-format.md#rotation)). Nearly symmetric skins look the same either way, which is how this went unnoticed; an asymmetric one shows it at once. `TestRightArmOnViewersLeft` pins it with a procedural texture whose arms are different colours.
 
 ### Face geometry
 
@@ -86,7 +95,7 @@ The pairing of texture rows to geometry rows matters and is easy to get backward
 
 ### Mirroring
 
-`mirror: true` swaps `u0` and `u1` on the east and west faces only, flipping their horizontal texture direction. This is how a model reuses one arm's texture for both arms.
+`mirror: true` on a cube, or on its bone, mirrors the cube's texture left to right: the east and west faces trade texture rectangles, and every face's `u0` and `u1` swap. This is how a model reuses one arm's texture for both arms. (It cancels the U flip the X mirror above applies, so a mirrored cube's faces keep their texture's own direction.)
 
 ### The texture coordinate flip
 

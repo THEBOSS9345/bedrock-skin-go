@@ -41,9 +41,9 @@ func Render2D(texture image.Image, view View, size int) image.Image {
 	case ViewHead, ViewAvatar:
 		canvas = compose(frontCrop(head))
 	case ViewChest:
-		canvas = composeParts(frontCrop(head), frontCrop(body), frontCrop(leftArm), frontCrop(rightArm), nil, nil)
+		canvas = composeParts(frontCrop(head), frontCrop(body), frontCrop(rightArm), frontCrop(leftArm), nil, nil)
 	default: // ViewBody
-		canvas = composeParts(frontCrop(head), frontCrop(body), frontCrop(leftArm), frontCrop(rightArm), frontCrop(leftLeg), frontCrop(rightLeg))
+		canvas = composeParts(frontCrop(head), frontCrop(body), frontCrop(rightArm), frontCrop(leftArm), frontCrop(rightLeg), frontCrop(leftLeg))
 	}
 
 	out := image.NewNRGBA(image.Rect(0, 0, size, size))
@@ -58,17 +58,18 @@ func compose(img image.Image) *image.NRGBA {
 	return out
 }
 
-// composeParts stacks head above body above arms/legs into a flat paper doll.
-func composeParts(head, body, leftArm, rightArm, leftLeg, rightLeg image.Image) *image.NRGBA {
+// composeParts stacks head above body above arms/legs into a flat paper doll,
+// as seen facing the player: their right arm and leg on the viewer's left.
+func composeParts(head, body, viewerLeftArm, viewerRightArm, viewerLeftLeg, viewerRightLeg image.Image) *image.NRGBA {
 	bw := body.Bounds().Dx()
-	totalW := leftArm.Bounds().Dx() + bw + rightArm.Bounds().Dx()
+	totalW := viewerLeftArm.Bounds().Dx() + bw + viewerRightArm.Bounds().Dx()
 	totalH := head.Bounds().Dy() + body.Bounds().Dy()
-	if leftLeg != nil {
-		totalH += leftLeg.Bounds().Dy()
+	if viewerLeftLeg != nil {
+		totalH += viewerLeftLeg.Bounds().Dy()
 	}
 
 	out := image.NewNRGBA(image.Rect(0, 0, totalW, totalH))
-	midX := leftArm.Bounds().Dx()
+	midX := viewerLeftArm.Bounds().Dx()
 	y := 0
 
 	drawAt := func(img image.Image, x, yy int) {
@@ -80,15 +81,15 @@ func composeParts(head, body, leftArm, rightArm, leftLeg, rightLeg image.Image) 
 	drawAt(head, midX+(bw-hb.Dx())/2, y)
 	y += hb.Dy()
 
-	drawAt(leftArm, 0, y)
+	drawAt(viewerLeftArm, 0, y)
 	drawAt(body, midX, y)
-	drawAt(rightArm, midX+bw, y)
+	drawAt(viewerRightArm, midX+bw, y)
 	y += body.Bounds().Dy()
 
-	if leftLeg != nil && rightLeg != nil {
-		lw := leftLeg.Bounds().Dx()
-		drawAt(leftLeg, midX+bw/2-lw, y)
-		drawAt(rightLeg, midX+bw/2, y)
+	if viewerLeftLeg != nil && viewerRightLeg != nil {
+		lw := viewerLeftLeg.Bounds().Dx()
+		drawAt(viewerLeftLeg, midX+bw/2-lw, y)
+		drawAt(viewerRightLeg, midX+bw/2, y)
 	}
 
 	return out

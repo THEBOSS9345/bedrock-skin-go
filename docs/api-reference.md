@@ -543,6 +543,7 @@ type Bone struct {
 	Pivot    []float64
 	Rotation []float64
 	Inflate  float64
+	Mirror   bool
 	Cubes    []Cube
 }
 ```
@@ -551,13 +552,17 @@ type Bone struct {
 
 ```go
 type Cube struct {
-	Origin  []float64
-	Size    []float64
-	UV      json.RawMessage
-	Inflate *float64
-	Mirror  bool
+	Origin   []float64
+	Size     []float64
+	UV       json.RawMessage
+	Inflate  *float64
+	Mirror   bool
+	Rotation []float64
+	Pivot    []float64
 }
 ```
+
+`Rotation` turns the cube about `Pivot` (model space; the cube's centre when absent). A cube mirrors when its own `Mirror` or its bone's is set.
 
 `UV` stays raw because Bedrock allows two shapes — a `[u,v]` pair or a per-face object — resolved at mesh-build time. `Inflate` is a pointer so an explicit `0` can be told apart from absent, which matters since absent means "inherit the bone's value".
 

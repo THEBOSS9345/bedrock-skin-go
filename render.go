@@ -194,8 +194,8 @@ func angleToYawPitch(angle Angle) (yawDegrees, pitchDegrees float64) {
 // whose extent you already assumed.
 //
 // yaw=0,pitch=0 sits the camera on the -Z side looking toward +Z, up=+Y.
-// Positive yaw swings the eye toward +X; positive pitch raises it to look
-// down. See docs/rendering-pipeline.md#stage-4--framing-the-camera for how
+// Positive yaw swings the eye toward -X, the model's left once model space is
+// mirrored into the world; positive pitch raises it to look down. See docs/rendering-pipeline.md#stage-4--framing-the-camera for how
 // that baseline was established.
 func cameraForYawPitch(triangles []*fauxgl.Triangle, fovDegrees, marginFactor, yawDegrees, pitchDegrees float64) (eye, center fauxgl.Vector) {
 	min, max := boundingBoxOf(triangles)
@@ -209,7 +209,7 @@ func cameraForYawPitch(triangles []*fauxgl.Triangle, fovDegrees, marginFactor, y
 
 	yaw, pitch := yawDegrees*math.Pi/180, pitchDegrees*math.Pi/180
 	offset := fauxgl.Vector{
-		X: distance * math.Sin(yaw) * math.Cos(pitch),
+		X: -distance * math.Sin(yaw) * math.Cos(pitch),
 		Y: distance * math.Sin(pitch),
 		Z: -distance * math.Cos(yaw) * math.Cos(pitch),
 	}

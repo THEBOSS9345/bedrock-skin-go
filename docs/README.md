@@ -48,7 +48,7 @@ The one thing that surprises most people is covered in [skin-data.md](skin-data.
 
 ## Provenance
 
-The behaviour described in these docs was established against real captured traffic from a Bedrock client, not from documentation. Where a doc says "confirmed against captures", it means exactly that. Where something remains unverified, it says so — see the bone-rotation note in [geometry-format.md](geometry-format.md).
+The behaviour described in these docs was established against real captured traffic from a Bedrock client, not from documentation. Where a doc says "confirmed against captures", it means exactly that. Where something remains unverified, it says so; rotation, once the open question, is now checked against real captured models — see [geometry-format.md](geometry-format.md#rotation).
 
 ## Testing and benchmarks
 
