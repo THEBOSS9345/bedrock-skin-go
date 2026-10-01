@@ -340,6 +340,74 @@ if bones, cubes := skinapi.Complexity(geos); bones > 2000 || cubes > 5000 {
 
 ---
 
+## Animation
+
+See [animation.md](animation.md) for the motions, the file format, Molang and the conventions.
+
+### `type Pose map[string]BonePose` and `type BonePose`
+
+```go
+type BonePose struct {
+	Rotation [3]float64 // degrees, added to the bone's own
+	Position [3]float64 // model units, added to its offset from its parent
+	Scale    [3]float64 // multiplies the bone about its pivot, when Scaled
+	Scaled   bool
+}
+```
+
+A pose for each bone it moves, by name (exact, else case-insensitive). Set `Options.Pose` to render one pose as a still.
+
+### `type Animator`
+
+```go
+type Animator interface {
+	Duration() float64   // one loop, in seconds
+	Pose(t float64) Pose // the pose t seconds in
+}
+```
+
+What `RenderFrames` and `RenderGIF` take: a built-in `Motion` or an `*Animation`.
+
+### `type Motion` and `func Motions() []Motion`, `func ParseMotion(s string) (Motion, error)`
+
+The built-in motions: `MotionWalk`, `MotionIdle`, `MotionWave`, `MotionSneak`. `ParseMotion` returns `ErrUnknownMotion` for an unrecognised name.
+
+### `func ParseAnimations(raw []byte) (map[string]*Animation, error)`
+
+Reads a Bedrock animation file (a Blockbench export, or a resource pack's), returning its animations by name. Every Molang expression is compiled here, so a syntax error is reported now, naming where it is. `ErrNoAnimations` for a file with none.
+
+### `type Animation`
+
+```go
+type Animation struct {
+	Name            string
+	Loop            bool
+	HoldOnLastFrame bool
+	Length          float64 // seconds
+}
+```
+
+**`func (a *Animation) Pose(t float64) Pose`** and **`Duration() float64`**: it satisfies `Animator`.
+
+### `func RenderFrames(opts AnimationOptions) ([]image.Image, error)`
+
+Every frame of the animation, sharing one camera fitted around its whole sweep.
+
+### `func RenderGIF(opts AnimationOptions) ([]byte, error)`
+
+The same frames as a looping GIF.
+
+### `type AnimationOptions`
+
+```go
+type AnimationOptions struct {
+	Options             // everything Render takes; its Pose is ignored
+	Animation Animator  // required; ErrNoAnimation without one
+	FPS       int       // frames per second; zero means 20
+	Frames    int       // zero means one loop
+}
+```
+
 ## Invisibility detection
 
 Separate from rendering: given a texture (and, ideally, its geometry), answer *"is this skin invisible, or partly invisible?"* The high-level entry point is `Skin`, which bundles the two and answers the common questions in one call. The `Validate*`/`Is*` functions underneath are for callers who want the raw result or finer control.
@@ -547,6 +615,8 @@ type Bone struct {
 	Cubes    []Cube
 }
 ```
+
+`Rotation` follows the geometry convention in [geometry-format.md](geometry-format.md#rotation), as do animation rotations.
 
 ### `type Cube`
 

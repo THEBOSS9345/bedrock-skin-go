@@ -88,6 +88,10 @@ type Options struct {
 	// Size is the output edge length in pixels; the image is always square.
 	// Zero means DefaultSize.
 	Size int
+
+	// Pose moves bones from where the geometry puts them, e.g. a frame of a
+	// Motion (see Motion.Pose). Nil is the rest pose.
+	Pose Pose
 }
 
 // Errors returned by Render and the option parsers. Every one describes bad
@@ -130,8 +134,37 @@ var (
 // back to a flat crop of the texture (see Render2D). That check is the
 // reason to prefer Render over driving the mesh functions directly.
 func Render(opts Options) (image.Image, error) {
+	sc, err := opts.scene(opts.Pose)
+	if err != nil || sc.flat != nil {
+		return sc.flat, err
+	}
+	eye, center := cameraForYawPitch(sc.framing(), sc.fov, sc.margin, sc.yaw, sc.pitch)
+	return rasterize(sc.triangles, sc.cape, opts.Texture, opts.Cape, eye, center, sc.fov, sc.size), nil
+}
+
+// scene is everything Render works out before placing the camera: the
+// triangles, the framing, and the output size. flat is set instead for a
+// persona skin, which has nothing to rasterize (see Render2D). Animation
+// builds one per frame and frames them all with one camera.
+type scene struct {
+	triangles, cape         []*fauxgl.Triangle
+	fov, margin, yaw, pitch float64
+	size                    int
+	flat                    image.Image
+}
+
+// framing is what the camera is fitted around: the body and the cape.
+func (sc scene) framing() []*fauxgl.Triangle {
+	if len(sc.cape) == 0 {
+		return sc.triangles
+	}
+	all := make([]*fauxgl.Triangle, 0, len(sc.triangles)+len(sc.cape))
+	return append(append(all, sc.triangles...), sc.cape...)
+}
+
+func (opts Options) scene(pose Pose) (scene, error) {
 	if opts.Texture == nil {
-		return nil, ErrNoTexture
+		return scene{}, ErrNoTexture
 	}
 
 	size := opts.Size
@@ -145,7 +178,7 @@ func Render(opts Options) (image.Image, error) {
 	}
 	geo, ok := SelectGeometry(geos, opts.Identifier)
 	if !ok {
-		return nil, ErrNoGeometry
+		return scene{}, ErrNoGeometry
 	}
 
 	view := opts.View
@@ -157,7 +190,7 @@ func Render(opts Options) (image.Image, error) {
 	// flat texture crop is the only meaningful output, and it's what the
 	// client itself shows.
 	if geo.TotalCubes() == 0 {
-		return Render2D(opts.Texture, view, size), nil
+		return scene{flat: Render2D(opts.Texture, view, size)}, nil
 	}
 
 	var (
@@ -169,14 +202,14 @@ func Render(opts Options) (image.Image, error) {
 	)
 
 	if len(opts.Parts) > 0 {
-		triangles = buildTriangles(geo, includeForParts(geo, opts.Parts))
+		triangles = buildTriangles(geo, includeForParts(geo, opts.Parts), pose)
 		if len(triangles) == 0 {
-			return nil, ErrNoMatchingParts
+			return scene{}, ErrNoMatchingParts
 		}
 	} else {
-		triangles = buildTriangles(geo, includeForView(geo, view))
+		triangles = buildTriangles(geo, includeForView(geo, view), pose)
 		if len(triangles) == 0 {
-			return nil, ErrEmptyView
+			return scene{}, ErrEmptyView
 		}
 		fov, margin = framingFor(view)
 	}
@@ -212,19 +245,11 @@ func Render(opts Options) (image.Image, error) {
 		// mesh with the skin texture, once here with the cape texture -
 		// leaves the two z-fighting.
 		if capeGeo, found := capeGeometryFor(geos, geo); found {
-			capeTriangles = buildCapeTriangles(capeGeo)
+			capeTriangles = buildCapeTriangles(capeGeo, pose)
 		}
 	}
 
-	framing := triangles
-	if len(capeTriangles) > 0 {
-		framing = make([]*fauxgl.Triangle, 0, len(triangles)+len(capeTriangles))
-		framing = append(framing, triangles...)
-		framing = append(framing, capeTriangles...)
-	}
-	eye, center := cameraForYawPitch(framing, fov, margin, yaw, pitch)
-
-	return rasterize(triangles, capeTriangles, opts.Texture, opts.Cape, eye, center, fov, size), nil
+	return scene{triangles: triangles, cape: capeTriangles, fov: fov, margin: margin, yaw: yaw, pitch: pitch, size: size}, nil
 }
 
 // capeVisibleIn reports whether a framing shows the cape at all. A head or

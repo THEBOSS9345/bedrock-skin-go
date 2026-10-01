@@ -180,8 +180,12 @@ Real captured geometry sometimes leaves those fields out entirely (seen in forma
 
 Bones and cubes rotate the same way: in degrees, around X, then Y, then Z, about their pivot. A bone's local transform is that rotation about its own origin, then a translation by `ownPivot - parentPivot`; a cube turns about its own `pivot` (its centre if absent) before its bone's transform.
 
-Model space is X-mirrored against the world it is drawn in, so in model space the X and Z angles are negated (see [rendering-pipeline.md](rendering-pipeline.md#model-space-is-x-mirrored)). That is the convention of Blockbench, the reference Bedrock model editor, which loads `rotation: [x, y, z]` as `(-x, -y, z)` in its mirrored world.
+Model space is X-mirrored against the world it is drawn in, so in model space the X and Z angles are negated (see [rendering-pipeline.md](rendering-pipeline.md#model-space-is-x-mirrored)): in standard right-handed terms the rotation is `Rz(-z)·Ry(y)·Rx(-x)`. That is the convention of Blockbench, the reference Bedrock model editor, which loads `rotation: [x, y, z]` as `(-x, -y, z)` in its mirrored world.
 
-This was long the one unverified corner: the first captures all had `rotation: [0, 0, 0]`. It has since been checked against real captured geometry with rotated bones and cubes (a CubeCraft galaxy costume with tilted rings, planets and stars; Hive and Galaxite cosmetics), which render as coherent designs only with this convention; earlier renders drew rotated cubes square-on and turned bones the wrong way about X and Z. `TestCubeRotation` pins the cube case with a procedural model.
+In plain terms: a positive X tips a bone's top forward (so a negative X swings a hanging limb forward), and a positive Z takes the right arm out from the body. `TestRotationDirections` pins all three axes to Minecraft's own player animations: riding lifts the legs forward with X `-81` and splays them with Y `±18`, and the idle bob takes the right arm out with a positive Z.
+
+One trap in the code: fauxgl's `Rotate` turns the opposite way to the standard rotation (its matrix is the transpose of the usual one), so `rotationMatrix` passes `+x, -y, +z` to it to produce the rotation above. An earlier version passed the standard signs straight through and rendered every rotation backwards.
+
+This was long the one unverified corner: the first captures all had `rotation: [0, 0, 0]`. It is now checked against Minecraft's own animations as above, and against real captured geometry with rotated bones and cubes (a CubeCraft galaxy costume with tilted rings, planets and stars; Hive and Galaxite cosmetics), which renders identically to an independent three.js implementation of the same convention. `TestCubeRotation` pins the cube case with a procedural model.
 
 Everything else in this document was verified against captures.

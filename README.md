@@ -134,6 +134,20 @@ Bone scoping is ancestry-based, so naming `head` also pulls in whatever is paren
 
 Every error `Render` returns is bad caller input and has a sentinel — `ErrNoTexture`, `ErrNoGeometry`, `ErrNoMatchingParts`, `ErrEmptyView` — so `errors.Is` classifies them without matching message text.
 
+## Animation
+
+Skins move too: Minecraft's own player motions built in (`MotionWalk`, `MotionIdle`, `MotionWave`, `MotionSneak`), or any animation from a Bedrock animation file - what Blockbench exports - with keyframes, smooth interpolation and Molang expressions. `RenderGIF` makes a looping GIF; `RenderFrames` returns the frames; `Options.Pose` renders one pose as a still.
+
+```go
+anims, _ := skinapi.ParseAnimations(blockbenchExport)
+gifBytes, err := skinapi.RenderGIF(skinapi.AnimationOptions{
+	Options:   skinapi.Options{Texture: tex, Size: 256},
+	Animation: anims["animation.player.wave"], // or skinapi.MotionWalk
+})
+```
+
+See [docs/animation.md](docs/animation.md).
+
 ## Persona skins
 
 Persona (avatar-builder) skins have real bones but no cubes at all, because Bedrock never sends mesh data for them. There is genuinely nothing to rasterize, so `Render` detects this and falls back to a flat crop of the texture rather than returning an error — matching what the client shows. `Render2D` exposes that path directly.

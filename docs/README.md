@@ -13,6 +13,7 @@ Start with whichever matches what you are doing:
 | Understand geometry.json | [geometry-format.md](geometry-format.md) |
 | Understand how a mesh becomes pixels | [rendering-pipeline.md](rendering-pipeline.md) |
 | Understand framing, bone scoping, cameras | [views-and-cameras.md](views-and-cameras.md) |
+| Animate a skin: built-in motions, Blockbench animation files | [animation.md](animation.md) |
 | Know *why* something is done a particular way | [design-decisions.md](design-decisions.md) |
 
 ## The short version
