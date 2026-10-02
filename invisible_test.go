@@ -1045,3 +1045,24 @@ func TestMalformedCubesDoNotPanicDetection(t *testing.T) {
 		IsSkinTiny([]byte(geom))
 	}
 }
+
+// A geometry declaring a 128-wide atlas on a 128 texture needs no scaling; the
+// detector used to double it and read off the edge (galaxite skin_abrl_class_scout).
+func TestDetectorScalesByDeclaredTextureSize(t *testing.T) {
+	tex := image.NewNRGBA(image.Rect(0, 0, 128, 128))
+	for y := 40; y < 56; y++ {
+		for x := 40; x < 72; x++ {
+			tex.Set(x, y, color.NRGBA{R: 200, A: 255})
+		}
+	}
+	cube := []Cube{{Origin: []float64{0, 0, 0}, Size: []float64{8, 8, 8}, UV: []byte(`[40, 40]`)}}
+	var bones []Bone
+	for _, n := range standardPartNames {
+		bones = append(bones, Bone{Name: n, Cubes: cube})
+	}
+	geo := getGeometryBytes(Geometry{Identifier: "g", TextureWidth: 128, TextureHeight: 128, Bones: bones})
+	r := ValidateSkinInvisibility(tex, geo)
+	if r.IsInvisible || r.VisibleParts != 6 {
+		t.Fatalf("got invisible=%v visible=%d, want a visible skin", r.IsInvisible, r.VisibleParts)
+	}
+}

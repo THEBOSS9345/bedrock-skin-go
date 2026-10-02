@@ -63,9 +63,10 @@
 // 3D mesh with no special-casing; bone scoping is ancestry-based, so a custom
 // bone parented under "head" is included by ViewHead automatically.
 //
-// Persona (avatar-builder) skins have real bones but no cubes at all, because
-// Bedrock never sends mesh data for them. Render detects this and falls back
-// to a flat crop of the texture rather than failing.
+// Persona (character creator) skins are poly meshes rather than cubes, spread
+// over several geometry entries; their head is textured by the face
+// animation, which Options.Animated carries. See
+// docs/geometry-format.md#persona-skins.
 //
 // # Untrusted input
 //

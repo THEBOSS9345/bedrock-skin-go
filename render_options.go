@@ -3,6 +3,7 @@ package bedrockskin
 import (
 	"errors"
 	"image"
+	"strings"
 
 	"github.com/fogleman/fauxgl"
 )
@@ -92,6 +93,57 @@ type Options struct {
 	// Pose moves bones from where the geometry puts them, e.g. a frame of a
 	// Motion (see Motion.Pose). Nil is the rest pose.
 	Pose Pose
+
+	// Animated holds the extra textures a persona skin's animations carry -
+	// the face, and animated body parts. Each draws the geometry entry made
+	// for it alongside the main one; a persona skin's head lives only in its
+	// face entry. See docs/geometry-format.md#persona-skins.
+	Animated []AnimatedTexture
+}
+
+// AnimatedType is the kind of a skin animation, numbered as the Bedrock
+// protocol numbers them.
+type AnimatedType int
+
+const (
+	AnimatedFace    AnimatedType = 1 // the face: eyes that blink
+	AnimatedBody32  AnimatedType = 2 // a 32x32 animated body part
+	AnimatedBody128 AnimatedType = 3 // a 128x128 animated body part
+)
+
+// AnimatedTexture is one skin animation's image: its frames stacked top to
+// bottom, as the client sends it.
+type AnimatedTexture struct {
+	Type    AnimatedType
+	Texture image.Image
+}
+
+// entryPrefix is the identifier prefix of the geometry entry an animation
+// type draws, e.g. geometry.animated_face_persona-<id>.
+func (t AnimatedType) entryPrefix() string {
+	switch t {
+	case AnimatedFace:
+		return "geometry.animated_face"
+	case AnimatedBody32:
+		return "geometry.animated_32x32"
+	case AnimatedBody128:
+		return "geometry.animated_128x128"
+	}
+	return ""
+}
+
+// animatedEntry finds the entry an animation type draws.
+func animatedEntry(geos []Geometry, t AnimatedType) (Geometry, bool) {
+	prefix := t.entryPrefix()
+	if prefix == "" {
+		return Geometry{}, false
+	}
+	for _, g := range geos {
+		if strings.HasPrefix(g.Identifier, prefix) {
+			return g, true
+		}
+	}
+	return Geometry{}, false
 }
 
 // Errors returned by Render and the option parsers. Every one describes bad
@@ -128,38 +180,46 @@ var (
 //
 //	img, err := bedrockskin.Render(bedrockskin.Options{Texture: tex})
 //
-// Persona skins are handled rather than rejected. Their geometry has real
-// bones but no cubes at all — Bedrock never sends mesh data for
-// avatar-builder skins — so there is nothing to rasterize, and Render falls
-// back to a flat crop of the texture (see Render2D). That check is the
-// reason to prefer Render over driving the mesh functions directly.
+// Persona skins render in 3D from their poly meshes; pass their animation
+// images as Animated to get the head. Geometry whose bones draw nothing falls
+// back to a flat crop of the texture (see Render2D) rather than failing.
 func Render(opts Options) (image.Image, error) {
 	sc, err := opts.scene(opts.Pose)
 	if err != nil || sc.flat != nil {
 		return sc.flat, err
 	}
 	eye, center := cameraForYawPitch(sc.framing(), sc.fov, sc.margin, sc.yaw, sc.pitch)
-	return rasterize(sc.triangles, sc.cape, opts.Texture, opts.Cape, eye, center, sc.fov, sc.size), nil
+	return rasterize(sc.layers, eye, center, sc.fov, sc.size), nil
 }
 
 // scene is everything Render works out before placing the camera: the
-// triangles, the framing, and the output size. flat is set instead for a
-// persona skin, which has nothing to rasterize (see Render2D). Animation
-// builds one per frame and frames them all with one camera.
+// textured layers, the framing, and the output size. flat is set instead for
+// geometry with nothing to rasterize (see Render2D). Animation builds one per
+// frame and frames them all with one camera.
 type scene struct {
-	triangles, cape         []*fauxgl.Triangle
+	layers                  []layer
 	fov, margin, yaw, pitch float64
 	size                    int
 	flat                    image.Image
 }
 
-// framing is what the camera is fitted around: the body and the cape.
+// layer is triangles drawn with one texture. A scene draws its layers in
+// order: the body, any animated persona parts, then the cape.
+type layer struct {
+	triangles []*fauxgl.Triangle
+	texture   image.Image
+}
+
+// framing is what the camera is fitted around: every layer.
 func (sc scene) framing() []*fauxgl.Triangle {
-	if len(sc.cape) == 0 {
-		return sc.triangles
+	if len(sc.layers) == 1 {
+		return sc.layers[0].triangles
 	}
-	all := make([]*fauxgl.Triangle, 0, len(sc.triangles)+len(sc.cape))
-	return append(append(all, sc.triangles...), sc.cape...)
+	var all []*fauxgl.Triangle
+	for _, l := range sc.layers {
+		all = append(all, l.triangles...)
+	}
+	return all
 }
 
 func (opts Options) scene(pose Pose) (scene, error) {
@@ -186,10 +246,10 @@ func (opts Options) scene(pose Pose) (scene, error) {
 		view = ViewBody
 	}
 
-	// No cubes anywhere means a persona-style skin: real bones, no mesh. A
-	// flat texture crop is the only meaningful output, and it's what the
-	// client itself shows.
-	if geo.TotalCubes() == 0 {
+	// No cubes and no poly mesh anywhere: bones with nothing to draw. A
+	// flat texture crop is the only output left. See
+	// docs/design-decisions.md#why-persona-skins-fall-back-to-2d.
+	if !geo.HasMesh() {
 		return scene{flat: Render2D(opts.Texture, view, size)}, nil
 	}
 
@@ -201,16 +261,32 @@ func (opts Options) scene(pose Pose) (scene, error) {
 		pitch     float64
 	)
 
-	if len(opts.Parts) > 0 {
-		triangles = buildTriangles(geo, includeForParts(geo, opts.Parts), pose)
-		if len(triangles) == 0 {
+	include := func(g Geometry) func(string) bool {
+		if len(opts.Parts) > 0 {
+			return includeForParts(g, opts.Parts)
+		}
+		return includeForView(g, view)
+	}
+	triangles = buildTriangles(geo, include(geo), pose)
+	layers := []layer{{triangles, opts.Texture}}
+	drawn := len(triangles)
+	for _, a := range opts.Animated {
+		if a.Texture == nil {
+			continue
+		}
+		if g, ok := animatedEntry(geos, a.Type); ok && g.Identifier != geo.Identifier {
+			tris := buildTriangles(g, include(g), pose)
+			layers = append(layers, layer{tris, a.Texture})
+			drawn += len(tris)
+		}
+	}
+	if drawn == 0 {
+		if len(opts.Parts) > 0 {
 			return scene{}, ErrNoMatchingParts
 		}
-	} else {
-		triangles = buildTriangles(geo, includeForView(geo, view), pose)
-		if len(triangles) == 0 {
-			return scene{}, ErrEmptyView
-		}
+		return scene{}, ErrEmptyView
+	}
+	if len(opts.Parts) == 0 {
 		fov, margin = framingFor(view)
 	}
 
@@ -249,7 +325,10 @@ func (opts Options) scene(pose Pose) (scene, error) {
 		}
 	}
 
-	return scene{triangles: triangles, cape: capeTriangles, fov: fov, margin: margin, yaw: yaw, pitch: pitch, size: size}, nil
+	if opts.Cape != nil && len(capeTriangles) > 0 {
+		layers = append(layers, layer{capeTriangles, opts.Cape})
+	}
+	return scene{layers: layers, fov: fov, margin: margin, yaw: yaw, pitch: pitch, size: size}, nil
 }
 
 // capeVisibleIn reports whether a framing shows the cape at all. A head or

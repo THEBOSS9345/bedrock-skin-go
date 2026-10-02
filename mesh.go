@@ -288,7 +288,7 @@ func boneWorldMatrices(geo Geometry, pose Pose) map[string]fauxgl.Matrix {
 	return result
 }
 
-// buildTriangles builds fauxgl triangles for every cube in geo whose bone
+// buildTriangles builds fauxgl triangles for every cube and poly mesh in geo whose bone
 // name passes includeBone (nil = include everything), posed by pose (nil is
 // the rest pose).
 func buildTriangles(geo Geometry, includeBone func(name string) bool, pose Pose) []*fauxgl.Triangle {
@@ -301,6 +301,9 @@ func buildTriangles(geo Geometry, includeBone func(name string) bool, pose Pose)
 		world := worlds[b.Name]
 		for _, c := range b.Cubes {
 			addCube(&triangles, c, b, world, geo.TextureWidth, geo.TextureHeight)
+		}
+		if m, ok := b.Mesh(); ok {
+			addPolyMesh(&triangles, m, b, world, geo.TextureWidth, geo.TextureHeight)
 		}
 	}
 	return triangles

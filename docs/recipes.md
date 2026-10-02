@@ -374,4 +374,4 @@ inv := bedrockskin.IsSkinInvisible(tex) // texture-only, any size
 tiny := bedrockskin.IsSkinTiny(geoBytes)
 ```
 
-Persona skins are Mojang-curated and are never flagged invisible or suspicious - meaning geometry that parsed into bones, none carrying cubes. Geometry that fails to parse is not treated as a persona skin; it falls back to the texture-only check, so junk geometry can't be used to bypass detection. An opaque cape never masks an invisible body either.
+Persona skins are judged by what they draw: their poly meshes are measured where their UVs point, and the parts drawn only by an animated entry (the head, on every persona skin), whose texture the detector is not given, are trusted. Geometry that parses into bones drawing nothing at all is trusted visible. Geometry that fails to parse is not treated as a persona skin; it falls back to the texture-only check, so junk geometry can't be used to bypass detection. An opaque cape never masks an invisible body either.

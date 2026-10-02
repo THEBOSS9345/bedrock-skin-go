@@ -8,8 +8,8 @@ import (
 
 // Render2D composites a flat front-view "paper doll" by cropping the standard
 // vanilla box-UV regions straight out of the texture. It needs no geometry at
-// all, which is why Render falls back to it for persona skins: they carry
-// bones but no cubes, so there is nothing to rasterize.
+// all, which is why Render falls back to it for geometry that draws nothing:
+// bones with neither cubes nor a poly mesh.
 //
 // Coordinates are relative to a 64-wide texture and scaled proportionally for
 // other widths. See docs/rendering-pipeline.md#the-2d-fallback.

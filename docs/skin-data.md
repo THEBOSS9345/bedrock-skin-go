@@ -117,11 +117,11 @@ img, err := bedrockskin.Render(bedrockskin.Options{
 
 An `Identifier` that matches nothing is not an error — `SelectGeometry` falls back to the entry with the most cubes.
 
-## Persona skins send nothing renderable
+## Persona skins are spread over the animations
 
-When `PersonaSkin` is true, the skin was assembled in the avatar builder from separate pieces. Bedrock never sends real mesh data for these. What arrives is geometry with real, named bones and **zero cubes in all of them**.
+When `PersonaSkin` is true, the skin was assembled in the character creator from separate pieces. Its geometry has no cubes: every part is a `poly_mesh`, and the parts are spread over several entries. The main entry is textured by `SkinData`; the `geometry.animated_face_…`, `geometry.animated_32x32_…` and `geometry.animated_128x128_…` entries are textured by the images in the skin's `Animations` list, matched by its animation type (1 face, 2 32x32 body, 3 128x128 body).
 
-There is genuinely nothing to rasterize. `Render` detects this — `Geometry.TotalCubes() == 0` — and falls back to a flat texture crop rather than failing. See [design-decisions.md](design-decisions.md#why-persona-skins-fall-back-to-2d).
+The head is always in the face entry. To render a persona skin whole, keep the animation images and pass them as `Options.Animated`; with the skin image alone, the body renders and the head does not. See [geometry-format.md](geometry-format.md#persona-skins).
 
 ## Capes live in their own entry
 
@@ -170,5 +170,5 @@ Point a Bedrock client at it as a server on port 19132 and join. The login packe
 - `SkinGeometryData` is usually `null`. That is normal.
 - `SkinResourcePatch`, not `ArmSize`, decides wide vs slim.
 - `SkinGeometryDataEngineVersion` is *also* base64 — `MC4wLjA=` is just `0.0.0`. Easy to miss when every neighbouring field of that shape holds JSON.
-- Persona skins have bones but no cubes.
+- Persona skins are poly meshes, and their head is textured by an animation image, not `SkinData`.
 - Capes are a separate geometry entry plus a separate texture.

@@ -32,11 +32,33 @@ func boneMap(geo Geometry) map[string]Bone {
 	return m
 }
 
+// sameBone compares bone names ignoring ASCII case, as Bedrock does: persona
+// models name their limbs "leftarm" where vanilla says "leftArm". See
+// docs/geometry-format.md#bone-names-ignore-case.
+func sameBone(a, b string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := 0; i < len(a); i++ {
+		x, y := a[i], b[i]
+		if 'A' <= x && x <= 'Z' {
+			x += 'a' - 'A'
+		}
+		if 'A' <= y && y <= 'Z' {
+			y += 'a' - 'A'
+		}
+		if x != y {
+			return false
+		}
+	}
+	return true
+}
+
 func isDescendant(byName map[string]Bone, name, ancestor string) bool {
 	seen := map[string]bool{}
 	cur := name
 	for cur != "" && !seen[cur] {
-		if cur == ancestor {
+		if sameBone(cur, ancestor) {
 			return true
 		}
 		seen[cur] = true
@@ -57,7 +79,7 @@ func includeForView(geo Geometry, view View) func(name string) bool {
 			return isDescendant(byName, name, "head") ||
 				isDescendant(byName, name, "leftArm") ||
 				isDescendant(byName, name, "rightArm") ||
-				name == "body" || name == "waist"
+				sameBone(name, "body") || sameBone(name, "waist")
 		}
 	default: // ViewBody
 		return nil // include everything
@@ -219,7 +241,7 @@ func cameraForYawPitch(triangles []*fauxgl.Triangle, fovDegrees, marginFactor, y
 
 // rasterize does the GPU-free drawing, given resolved triangles and camera
 // parameters. capeTriangles/capeTexture may be nil to skip the cape.
-func rasterize(triangles, capeTriangles []*fauxgl.Triangle, texture, capeTexture image.Image, eye, center fauxgl.Vector, fovDegrees float64, size int) image.Image {
+func rasterize(layers []layer, eye, center fauxgl.Vector, fovDegrees float64, size int) image.Image {
 	dc := fauxgl.NewContext(size, size)
 	dc.Cull = fauxgl.CullNone // see shader.go / mesh.go: winding order is not guaranteed consistent
 	dc.ClearColorBufferWith(fauxgl.Transparent)
@@ -236,16 +258,12 @@ func rasterize(triangles, capeTriangles []*fauxgl.Triangle, texture, capeTexture
 	// depth buffer, which trips the race detector in any downstream test
 	// suite. It is also slower under concurrent load. Do not "optimize" this
 	// back. See docs/design-decisions.md#why-rasterization-is-single-threaded.
-	tex := newFastImageTexture(texture)
-	dc.Shader = newAlphaTestTextureShader(matrix, tex)
-	for _, t := range triangles {
-		dc.DrawTriangle(t)
-	}
-
-	if capeTexture != nil && len(capeTriangles) > 0 {
-		capeTex := newFastImageTexture(capeTexture)
-		dc.Shader = newAlphaTestTextureShader(matrix, capeTex)
-		for _, t := range capeTriangles {
+	for _, l := range layers {
+		if len(l.triangles) == 0 {
+			continue
+		}
+		dc.Shader = newAlphaTestTextureShader(matrix, newFastImageTexture(l.texture))
+		for _, t := range l.triangles {
 			dc.DrawTriangle(t)
 		}
 	}

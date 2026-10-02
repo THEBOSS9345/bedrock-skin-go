@@ -19,9 +19,9 @@ type Bone struct {
 	Mirror   bool      `json:"mirror,omitempty"`
 	Cubes    []Cube    `json:"cubes,omitempty"`
 
-	// The rest of the schema, kept so a whole file can be read. The
-	// renderer draws cubes only: poly meshes and texture meshes are parsed
-	// but not drawn. See docs/geometry-format.md#everything-else-in-a-bone.
+	// The rest of the schema, kept so a whole file can be read. Poly
+	// meshes are drawn (read one with Mesh); texture meshes are parsed but
+	// not drawn. See docs/geometry-format.md#everything-else-in-a-bone.
 	BindPoseRotation []float64          `json:"bind_pose_rotation,omitempty"`
 	Locators         map[string]Locator `json:"locators,omitempty"`
 	PolyMesh         json.RawMessage    `json:"poly_mesh,omitempty"`
@@ -167,9 +167,8 @@ func Complexity(geos []Geometry) (bones, cubes int) {
 	return bones, cubes
 }
 
-// TotalCubes is the number of cubes across every bone in the entry. Zero
-// means the entry carries no mesh data at all, which is exactly what a
-// persona skin looks like: real bones, no cubes.
+// TotalCubes is the number of cubes across every bone in the entry. A persona
+// skin has none - its mesh is poly meshes; HasMesh counts both.
 func (g *Geometry) TotalCubes() int {
 	n := 0
 	for _, b := range g.Bones {

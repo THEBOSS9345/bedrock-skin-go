@@ -181,8 +181,8 @@ func RenderFrames(opts AnimationOptions) ([]image.Image, error) {
 			return nil, err
 		}
 		if sc.flat != nil {
-			// A persona skin has nothing to move: every frame is the flat
-			// crop.
+			// Geometry that draws nothing has nothing to move: every frame
+			// is the flat crop.
 			out := make([]image.Image, frames)
 			for j := range out {
 				out[j] = sc.flat
@@ -196,7 +196,7 @@ func RenderFrames(opts AnimationOptions) ([]image.Image, error) {
 	eye, center := cameraForYawPitch(sweep, first.fov, first.margin, first.yaw, first.pitch)
 	out := make([]image.Image, frames)
 	for i, sc := range scenes {
-		out[i] = rasterize(sc.triangles, sc.cape, opts.Texture, opts.Cape, eye, center, sc.fov, sc.size)
+		out[i] = rasterize(sc.layers, eye, center, sc.fov, sc.size)
 	}
 	return out, nil
 }

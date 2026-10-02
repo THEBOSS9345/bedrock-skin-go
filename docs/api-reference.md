@@ -23,7 +23,8 @@ With only a texture, that renders the full body of a standard humanoid, straight
 `Render` handles the awkward cases so callers do not have to:
 
 - `Geometry` nil or empty → falls back to `DefaultGeometry()`.
-- Selected geometry has no cubes (a persona skin) → falls back to `Render2D` instead of failing.
+- Selected geometry draws nothing (bones with neither cubes nor a poly mesh) → falls back to `Render2D` instead of failing.
+- Persona skins render in 3D from their poly meshes. Their head is in the face animation's entry, drawn only when `Options.Animated` carries that image.
 - `Identifier` matching nothing → falls back to the entry with the most cubes.
 
 Errors:
@@ -109,7 +110,7 @@ case err != nil:
 
 Flat "paper doll" render, cropped from the texture's standard box-UV regions. No geometry involved.
 
-`Render` calls this automatically for persona skins, so you rarely need it directly. Reach for it when you explicitly want the flat look, or when you have a texture and know it uses standard proportions.
+`Render` calls this automatically for geometry that draws nothing, so you rarely need it directly. Reach for it when you explicitly want the flat look, or when you have a texture and know it uses standard proportions.
 
 Honours `ViewHead`/`ViewAvatar` (head only), `ViewChest` (no legs) and `ViewBody` (everything).
 
@@ -609,7 +610,7 @@ type GeometrySizeResult struct {
 | `DefaultMinGeometrySize` | 0.5 | world units below which a bone is too small to see |
 | `DefaultMinVisibleAlpha` | 0.5/255 | alpha at or above which a pixel counts as opaque |
 
-Persona skins (`poly_mesh`, `normalized_uvs`, zero cubes) are Mojang-curated and are **never** flagged invisible or suspicious — geometry that parses into bones, none of which carry cubes, returns a trusted-visible result.
+Persona skins are judged by what they draw: their poly meshes are measured where their UVs point, and the parts drawn only by an animated entry (the head, on every persona skin), whose texture the detector is not given, are trusted. Geometry that parses into bones drawing nothing at all is trusted visible.
 
 That branch tests *parsed bones*, not "the caller supplied some bytes". Geometry that fails to parse, or parses to nothing, is not a persona skin: it falls through to the texture-only standard-layout check, exactly as `nil` geometry does. Treating unreadable geometry as a persona skin let anyone defeat the detector outright by attaching a byte of garbage to `SkinGeometryData`.
 
@@ -642,7 +643,22 @@ One normalized model, regardless of which wire format it came from.
 
 **`func (g *Geometry) Locator(name string) (Locator, Bone, bool)`** — a locator on any bone, and the bone it is on.
 
-**`func (g *Geometry) TotalCubes() int`** — cubes across every bone. **Zero means a persona skin**: real bones, no mesh.
+**`func (g *Geometry) TotalCubes() int`** — cubes across every bone. A persona skin has none; its mesh is poly meshes.
+
+**`func (g *Geometry) HasMesh() bool`** — whether any bone draws something, a cube or a poly mesh. False is when `Render` falls back to `Render2D`.
+
+**`func (b Bone) Mesh() (PolyMesh, bool)`** — the bone's poly mesh, read from `PolyMesh`. See [geometry-format.md](geometry-format.md#poly-meshes).
+
+### Persona animation textures
+
+```go
+type AnimatedTexture struct {
+	Type    AnimatedType // AnimatedFace (1), AnimatedBody32 (2), AnimatedBody128 (3), as the protocol numbers them
+	Texture image.Image  // the animation's image, frames stacked top to bottom
+}
+```
+
+`Options.Animated` takes these. Each draws the `geometry.animated_face_…` / `_32x32_…` / `_128x128_…` entry of the geometry with its own texture, alongside the selected entry.
 
 ### `type Bone`
 
@@ -658,7 +674,7 @@ type Bone struct {
 
 	BindPoseRotation []float64
 	Locators         map[string]Locator
-	PolyMesh         json.RawMessage // parsed, not drawn
+	PolyMesh         json.RawMessage // drawn; read with Mesh()
 	TextureMeshes    json.RawMessage // parsed, not drawn
 }
 
