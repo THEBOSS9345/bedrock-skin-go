@@ -17,7 +17,7 @@ Start with [`docs/README.md`](docs/README.md), then whichever of these the task 
 
 ## What this project is
 
-A pure Go library that renders Minecraft Bedrock skins to images. Texture in, `image.Image` or PNG bytes out. Software rasterizer built on `fauxgl` — no GPU, no browser, no external process.
+A pure Go library that renders Minecraft Bedrock skins to images. Texture in, `image.Image` or PNG bytes out. Its own software rasterizer (`raster.go`; matrices and clipping from `fauxgl`) — no GPU, no browser, no external process.
 
 It is a **library**, not a service. It has no HTTP layer and depends only on `fauxgl` and `golang.org/x/image`. Do not add a web framework.
 
@@ -54,8 +54,9 @@ Several things here are deliberate and were each a real bug once. Every one is d
 - **Sampling is nearest-neighbour.** Atlas regions have no padding; bilinear bleeds into neighbours.
 - **`SelectGeometry` falls back to the most cubes, not the first entry.** Bundles list the cape first.
 - **The camera is computed from the bounding box.** A hardcoded distance breaks on any unusual model.
-- **`CullNone` is intentional.** Winding order is not guaranteed consistent.
-- **Rasterization uses the singular `DrawTriangle` in a loop.** The plural form is faster for one render but races on fauxgl's depth buffer, which would trip the race detector in every downstream service.
+- **Back faces are drawn on purpose.** Winding order is not guaranteed consistent.
+- **One render rasterizes one triangle at a time, in order.** Drawing order decides depth ties, so it is part of the image. Parallelism is across renders and across animation frames, never inside one image.
+- **`raster.go` must keep fauxgl's arithmetic exactly**, operation for operation - including `!(bz <= depth)`, which a NaN depth tells apart from `bz > depth`. The goldens and the Rust parity fixtures catch any drift.
 
 ## Conventions
 

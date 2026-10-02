@@ -42,7 +42,7 @@ geometry.json ──▶ ParseGeometry ──▶ []Geometry
                      (frame the actual bounding box)
                                       │
                                    rasterize
-                     (fauxgl, alpha-tested, unlit)
+                  (own rasterizer, alpha-tested, unlit)
                                       │
                                    image.Image
 ```

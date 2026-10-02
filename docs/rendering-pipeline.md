@@ -24,7 +24,7 @@ That fallback is deliberate and is *not* "the first entry" — see [design-decis
 
 ## Stage 2 — Flattening the bone hierarchy
 
-Bones form a tree by name reference, but the rasterizer has no scene graph. fauxgl draws flat triangle soups in world space, so the hierarchy has to be **baked into vertex positions** before anything is drawn.
+Bones form a tree by name reference, but the rasterizer has no scene graph. It draws flat triangle soups in world space, so the hierarchy has to be **baked into vertex positions** before anything is drawn.
 
 Each bone's local transform is:
 
@@ -101,14 +101,14 @@ The pairing of texture rows to geometry rows matters and is easy to get backward
 
 This one is worth stating precisely, because it produced a genuinely confusing bug.
 
-UV rectangles are computed **top-down**: row 0 is the top, matching normal PNG row order and the convention used throughout the geometry format. But fauxgl's `Texture.Sample` internally does `v = 1 - v`, following OpenGL's bottom-up convention.
+UV rectangles are computed **top-down**: row 0 is the top, matching normal PNG row order and the convention used throughout the geometry format. But the texture sampler, like fauxgl's, internally does `v = 1 - v`, following OpenGL's bottom-up convention.
 
 So the V coordinate is pre-flipped when the vertex is built:
 
 ```go
 Texture: fauxgl.Vector{
 	X: uvCorners[i][0] / texW,
-	Y: 1 - uvCorners[i][1]/texH,  // counteracts fauxgl's internal flip
+	Y: 1 - uvCorners[i][1]/texH,  // counteracts the sampler's internal flip
 }
 ```
 
@@ -175,16 +175,15 @@ Four details, each of which was a bug at some point:
 
 ### Alpha testing
 
-The shader is unlit — it samples the texture and returns the colour, matching Minecraft's flat skin rendering. There is no lighting model to get wrong.
+Rendering is unlit — a fragment is the texture's colour, matching Minecraft's flat skin rendering. There is no lighting model to get wrong.
 
 What it does do is **discard**:
 
 ```go
-c := s.Texture.Sample(v.Texture.X, v.Texture.Y)
-if c.A < s.Threshold {  // 0.5
-	return fauxgl.Discard
+c := tex.pix[k : k+4]  // the texel's bytes
+if c[3] < 128 {        // alpha below 0.5
+	continue           // no colour, no depth
 }
-return c
 ```
 
 Discard skips colour **and depth**. That is the whole point. The overlay layer (hat, jacket, sleeves, pants) consists of cubes sitting 0.25 units outside the base body, textured mostly transparent. If those transparent fragments were alpha-*blended* instead of discarded, they would still write depth and would occlude the body underneath — you would get a person-shaped hole. Alpha testing is what makes the second layer work at all.
