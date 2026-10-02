@@ -3,6 +3,13 @@
 Versions match bedrock-skin-rs: the same version renders the same images
 with the same features in both.
 
+## Unreleased
+
+- Fixed: poses now find bones case-insensitively both ways. The built-in
+  motions and most example animations say `leftArm`, persona models name the
+  bone `leftarm`, and persona skins stood still in walk, idle, wave, sneak and
+  11 animations in all.
+
 ## v0.2.1
 
 - `WireSkin`: a skin as a Bedrock packet carries it - raw RGBA, geometry,

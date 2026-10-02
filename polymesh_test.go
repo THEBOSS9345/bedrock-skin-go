@@ -1,6 +1,7 @@
 package bedrockskin
 
 import (
+	"bytes"
 	"errors"
 	"image"
 	"image/color"
@@ -121,5 +122,20 @@ func TestPolygonsResolveCorners(t *testing.T) {
 	m.Polys = []byte(`"quad_list"`)
 	if q := m.Polygons(); len(q) != 1 || q[0][3].UV != ([2]float64{0, 1}) {
 		t.Fatalf("quad_list: %+v", q)
+	}
+}
+
+// The built-in motions say "leftArm"; a persona model names the bone
+// "leftarm". The walk must still swing its limbs.
+func TestPersonaMeshWalks(t *testing.T) {
+	frames, err := RenderFrames(AnimationOptions{Options: Options{Texture: makeTexture(255), Geometry: personaMeshGeometry(t), Size: 48}, Animation: MotionWalk, FPS: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Equal(frames[0].(*image.NRGBA).Pix, frames[1].(*image.NRGBA).Pix) {
+		t.Fatal("a persona model stands still while walking")
+	}
+	if got := (Pose{"leftArm": {Rotation: [3]float64{10}}}).of("leftarm"); got.Rotation[0] != 10 {
+		t.Fatalf("pose for leftarm = %+v", got)
 	}
 }
