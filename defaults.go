@@ -1,4 +1,4 @@
-package skinapi
+package bedrockskin
 
 import (
 	_ "embed"
@@ -22,10 +22,10 @@ func mustParseDefault() []Geometry {
 	if err != nil {
 		// Compiled into the binary, so this cannot fail on anything a caller
 		// did - it means the library was built broken.
-		panic(fmt.Sprintf("skinapi: embedded default_geometry.json is invalid: %v", err))
+		panic(fmt.Sprintf("bedrockskin: embedded default_geometry.json is invalid: %v", err))
 	}
 	if len(geos) == 0 {
-		panic("skinapi: embedded default_geometry.json produced no geometry entries")
+		panic("bedrockskin: embedded default_geometry.json produced no geometry entries")
 	}
 	return geos
 }

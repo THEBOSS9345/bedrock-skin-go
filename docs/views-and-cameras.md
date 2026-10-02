@@ -47,7 +47,7 @@ The FOV and margin per view come from `framingFor`. Head-scoped views use a narr
 `Parts` overrides `View` and takes bone names directly:
 
 ```go
-img, err := skinapi.Render(skinapi.Options{
+img, err := bedrockskin.Render(bedrockskin.Options{
 	Texture: tex,
 	Parts:   []string{"head", "leftArm", "rightArm"},
 })
@@ -58,7 +58,7 @@ Each name pulls in its descendants, exactly like a view anchor — naming `head`
 `ParseParts` exists for the common case of accepting that list as a comma-separated string from an HTTP form or CLI flag:
 
 ```go
-parts := skinapi.ParseParts("head, leftArm, rightArm")
+parts := bedrockskin.ParseParts("head, leftArm, rightArm")
 ```
 
 It trims whitespace and drops empty entries, so `"head,,leftArm,"` behaves sensibly.
@@ -87,9 +87,9 @@ The iso values of 35°/25° were chosen to show front, top and one side without 
 `Camera` overrides `Angle` entirely:
 
 ```go
-img, err := skinapi.Render(skinapi.Options{
+img, err := bedrockskin.Render(bedrockskin.Options{
 	Texture: tex,
-	Camera:  &skinapi.Camera{Yaw: 35, Pitch: 15, FOV: 30, Margin: 1.4},
+	Camera:  &bedrockskin.Camera{Yaw: 35, Pitch: 15, FOV: 30, Margin: 1.4},
 })
 ```
 
@@ -106,8 +106,8 @@ img, err := skinapi.Render(skinapi.Options{
 // ViewAvatar's tight framing, but seen from the side.
 Options{
 	Texture: tex,
-	View:    skinapi.ViewAvatar,
-	Camera:  &skinapi.Camera{Yaw: 60},
+	View:    bedrockskin.ViewAvatar,
+	Camera:  &bedrockskin.Camera{Yaw: 60},
 }
 ```
 

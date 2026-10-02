@@ -1,4 +1,4 @@
-package skinapi
+package bedrockskin
 
 import (
 	"bytes"
@@ -41,9 +41,9 @@ type BytesOptions struct {
 
 // RenderBytes renders from encoded bytes and returns encoded PNG bytes.
 //
-//	out, err := skinapi.RenderBytes(skinapi.BytesOptions{
+//	out, err := bedrockskin.RenderBytes(bedrockskin.BytesOptions{
 //		Texture: textureBytes,
-//		View:    skinapi.ViewAvatar,
+//		View:    bedrockskin.ViewAvatar,
 //	})
 //
 // It is exactly Render with decoding and PNG encoding folded in, so it
@@ -148,7 +148,7 @@ func EncodePNG(img image.Image) ([]byte, error) {
 //	if err != nil {
 //		return err
 //	}
-//	tex, err := skinapi.TextureFromRGBA(raw, data.SkinImageWidth, data.SkinImageHeight)
+//	tex, err := bedrockskin.TextureFromRGBA(raw, data.SkinImageWidth, data.SkinImageHeight)
 //
 // The byte slice backs the image directly rather than being copied, so it
 // must not be modified afterwards. A length that disagrees with the declared
@@ -178,14 +178,14 @@ func TextureFromRGBA(pix []byte, width, height int) (image.Image, error) {
 // dimensions and force a multi-gigabyte allocation the moment it is decoded.
 // Bounding the header first costs nothing.
 //
-//	w, h, err := skinapi.ImageDimensions(data)
+//	w, h, err := bedrockskin.ImageDimensions(data)
 //	if err != nil {
 //		return err
 //	}
 //	if w > 512 || h > 512 {
 //		return errors.New("skin texture too large")
 //	}
-//	tex, err := skinapi.DecodeImage(data)
+//	tex, err := bedrockskin.DecodeImage(data)
 //
 // It is to a texture what Complexity is to geometry: the measurement, with the
 // ceiling left to the caller. See docs/recipes.md#handling-untrusted-uploads.

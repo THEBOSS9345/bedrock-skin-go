@@ -1,4 +1,4 @@
-package skinapi
+package bedrockskin
 
 import (
 	"bytes"
@@ -30,7 +30,7 @@ const (
 )
 
 // ErrUnknownMotion is returned by ParseMotion for an unrecognised name.
-var ErrUnknownMotion = errors.New("skinapi: unknown motion")
+var ErrUnknownMotion = errors.New("bedrockskin: unknown motion")
 
 // Motions returns every built-in motion.
 func Motions() []Motion { return []Motion{MotionWalk, MotionIdle, MotionWave, MotionSneak} }
@@ -147,7 +147,7 @@ type AnimationOptions struct {
 
 // ErrNoAnimation is returned by RenderFrames and RenderGIF without an
 // Animation.
-var ErrNoAnimation = errors.New("skinapi: no animation to render")
+var ErrNoAnimation = errors.New("bedrockskin: no animation to render")
 
 func (o AnimationOptions) timing() (fps, frames int) {
 	fps, frames = o.FPS, o.Frames

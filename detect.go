@@ -1,4 +1,4 @@
-package skinapi
+package bedrockskin
 
 import (
 	"encoding/json"
@@ -58,16 +58,16 @@ func (p *PartVisibility) UnmarshalJSON(data []byte) error {
 		case "tiny":
 			*p = PartTiny
 		default:
-			return fmt.Errorf("skinapi: unknown part visibility %q", name)
+			return fmt.Errorf("bedrockskin: unknown part visibility %q", name)
 		}
 		return nil
 	}
 	var n int
 	if err := json.Unmarshal(data, &n); err != nil {
-		return fmt.Errorf("skinapi: part visibility: %w", err)
+		return fmt.Errorf("bedrockskin: part visibility: %w", err)
 	}
 	if n < int(PartVisible) || n > int(PartTiny) {
-		return fmt.Errorf("skinapi: part visibility %d out of range", n)
+		return fmt.Errorf("bedrockskin: part visibility %d out of range", n)
 	}
 	*p = PartVisibility(n)
 	return nil
@@ -117,7 +117,7 @@ func (v Verdict) MarshalJSON() ([]byte, error) { return json.Marshal(v.String())
 func (v *Verdict) UnmarshalJSON(data []byte) error {
 	var name string
 	if err := json.Unmarshal(data, &name); err != nil {
-		return fmt.Errorf("skinapi: verdict: %w", err)
+		return fmt.Errorf("bedrockskin: verdict: %w", err)
 	}
 	switch name {
 	case "unknown":
@@ -129,7 +129,7 @@ func (v *Verdict) UnmarshalJSON(data []byte) error {
 	case "invisible":
 		*v = VerdictInvisible
 	default:
-		return fmt.Errorf("skinapi: unknown verdict %q", name)
+		return fmt.Errorf("bedrockskin: unknown verdict %q", name)
 	}
 	return nil
 }

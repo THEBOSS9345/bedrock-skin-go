@@ -212,7 +212,7 @@ Everything else in this document was verified against captures.
 `ParseGeometryTree` reads a whole geometry file — every field, including any no type here covers — and picks values out of it by path, the way bones are picked by name:
 
 ```go
-tree, err := skinapi.ParseGeometryTree(raw)
+tree, err := bedrockskin.ParseGeometryTree(raw)
 
 // One value.
 v, ok := tree.Get("geometry.humanoid.custom/bones/rightArm/pivot")
@@ -228,7 +228,7 @@ for _, v := range tree.Select("*/bones/*/cubes/*/size") {
 }
 
 // A whole bone, typed.
-var arm skinapi.Bone
+var arm bedrockskin.Bone
 v, _ = tree.Get("geometry.humanoid.custom/bones/rightArm")
 err = v.Decode(&arm)
 ```

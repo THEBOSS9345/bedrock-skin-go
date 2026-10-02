@@ -9,21 +9,21 @@ Both pose bones by name, so they work on any model using the standard bone names
 
 ```go
 // A built-in motion, as an animated GIF.
-gifBytes, err := skinapi.RenderGIF(skinapi.AnimationOptions{
-	Options:   skinapi.Options{Texture: tex, Geometry: geos, Size: 256},
-	Animation: skinapi.MotionWalk,
+gifBytes, err := bedrockskin.RenderGIF(bedrockskin.AnimationOptions{
+	Options:   bedrockskin.Options{Texture: tex, Geometry: geos, Size: 256},
+	Animation: bedrockskin.MotionWalk,
 })
 
 // An animation from a Blockbench export.
-anims, err := skinapi.ParseAnimations(fileBytes)
-frames, err := skinapi.RenderFrames(skinapi.AnimationOptions{
-	Options:   skinapi.Options{Texture: tex, Size: 256},
+anims, err := bedrockskin.ParseAnimations(fileBytes)
+frames, err := bedrockskin.RenderFrames(bedrockskin.AnimationOptions{
+	Options:   bedrockskin.Options{Texture: tex, Size: 256},
 	Animation: anims["animation.player.wave"],
 	FPS:       30,
 })
 
 // One pose, as a still.
-img, err := skinapi.Render(skinapi.Options{Texture: tex, Pose: skinapi.MotionSneak.Pose(0)})
+img, err := bedrockskin.Render(bedrockskin.Options{Texture: tex, Pose: bedrockskin.MotionSneak.Pose(0)})
 ```
 
 `RenderFrames` builds every frame, then fits one camera around the whole sweep, so the model moves inside a still frame instead of the frame zooming to chase it. `RenderGIF` encodes those frames as a looping GIF: 256 colours a frame, shared across frames (exact for most skins, which use fewer), with on/off transparency as the renderer's alpha test already produces.
@@ -126,9 +126,9 @@ A division by zero gives 0, and no expression's value is ever NaN or infinite, w
 Each is named `animation.player.<name>`:
 
 ```go
-gifBytes, err := skinapi.RenderGIF(skinapi.AnimationOptions{
-	Options:   skinapi.Options{Texture: tex, Size: 256},
-	Animation: skinapi.ExampleAnimations()["animation.player.backflip"],
+gifBytes, err := bedrockskin.RenderGIF(bedrockskin.AnimationOptions{
+	Options:   bedrockskin.Options{Texture: tex, Size: 256},
+	Animation: bedrockskin.ExampleAnimations()["animation.player.backflip"],
 })
 ```
 

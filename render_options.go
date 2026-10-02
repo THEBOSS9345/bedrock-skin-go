@@ -1,4 +1,4 @@
-package skinapi
+package bedrockskin
 
 import (
 	"errors"
@@ -99,26 +99,26 @@ type Options struct {
 // set to a 4xx with errors.Is and without matching on message text.
 var (
 	// ErrNoTexture is returned by Render when Options.Texture is nil.
-	ErrNoTexture = errors.New("skinapi: texture is required")
+	ErrNoTexture = errors.New("bedrockskin: texture is required")
 
 	// ErrNoGeometry means Options.Geometry held no entry that could be
 	// rendered. Leaving Geometry nil is not this error - it selects
 	// DefaultGeometry.
-	ErrNoGeometry = errors.New("skinapi: geometry has no usable entries")
+	ErrNoGeometry = errors.New("bedrockskin: geometry has no usable entries")
 
 	// ErrNoMatchingParts means no bone in the geometry matched Options.Parts,
 	// usually a misspelled bone name.
-	ErrNoMatchingParts = errors.New("skinapi: no bones matched the requested parts")
+	ErrNoMatchingParts = errors.New("bedrockskin: no bones matched the requested parts")
 
 	// ErrEmptyView means the chosen View scoped to bones that have no cubes -
 	// for example ViewHead on geometry with no head bone.
-	ErrEmptyView = errors.New("skinapi: nothing to render for this view")
+	ErrEmptyView = errors.New("bedrockskin: nothing to render for this view")
 
 	// ErrUnknownView is returned by ParseView for an unrecognised name.
-	ErrUnknownView = errors.New("skinapi: unknown view")
+	ErrUnknownView = errors.New("bedrockskin: unknown view")
 
 	// ErrUnknownAngle is returned by ParseAngle for an unrecognised name.
-	ErrUnknownAngle = errors.New("skinapi: unknown angle")
+	ErrUnknownAngle = errors.New("bedrockskin: unknown angle")
 )
 
 // Render rasterizes a skin into a square image.
@@ -126,7 +126,7 @@ var (
 // The zero-ish case is the common one: with only a Texture set, this renders
 // the full body of a standard humanoid, straight on, at 512x512.
 //
-//	img, err := skinapi.Render(skinapi.Options{Texture: tex})
+//	img, err := bedrockskin.Render(bedrockskin.Options{Texture: tex})
 //
 // Persona skins are handled rather than rejected. Their geometry has real
 // bones but no cubes at all — Bedrock never sends mesh data for

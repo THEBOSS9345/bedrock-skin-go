@@ -1,4 +1,4 @@
-package skinapi
+package bedrockskin
 
 import "testing"
 

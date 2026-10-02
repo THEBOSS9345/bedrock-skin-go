@@ -1,4 +1,4 @@
-package skinapi
+package bedrockskin
 
 import (
 	"encoding/json"
@@ -81,7 +81,7 @@ type keyframe struct {
 
 // ErrNoAnimations is returned by ParseAnimations for a file with no
 // animations in it.
-var ErrNoAnimations = errors.New("skinapi: no animations in the file")
+var ErrNoAnimations = errors.New("bedrockskin: no animations in the file")
 
 // ParseAnimations reads a Bedrock animation file, returning its animations by
 // name. Every Molang expression in it is compiled, so a syntax error is
@@ -92,7 +92,7 @@ func ParseAnimations(raw []byte) (map[string]*Animation, error) {
 		Animations map[string]json.RawMessage `json:"animations"`
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		return nil, fmt.Errorf("skinapi: animation file: %w", err)
+		return nil, fmt.Errorf("bedrockskin: animation file: %w", err)
 	}
 	if len(doc.Animations) == 0 {
 		return nil, ErrNoAnimations
@@ -116,7 +116,7 @@ func parseAnimation(name string, raw json.RawMessage) (*Animation, error) {
 		Bones      map[string]json.RawMessage `json:"bones"`
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		return nil, fmt.Errorf("skinapi: animation %s: %w", name, err)
+		return nil, fmt.Errorf("bedrockskin: animation %s: %w", name, err)
 	}
 	a := &Animation{Name: name, bones: map[string]*boneAnimation{}}
 	switch strings.TrimSpace(string(doc.Loop)) {
@@ -128,7 +128,7 @@ func parseAnimation(name string, raw json.RawMessage) (*Animation, error) {
 	if len(doc.TimeUpdate) > 0 {
 		m, err := molangValue(doc.TimeUpdate)
 		if err != nil {
-			return nil, fmt.Errorf("skinapi: animation %s: anim_time_update: %w", name, err)
+			return nil, fmt.Errorf("bedrockskin: animation %s: anim_time_update: %w", name, err)
 		}
 		a.timeUpdate = m
 	}
@@ -136,13 +136,13 @@ func parseAnimation(name string, raw json.RawMessage) (*Animation, error) {
 	for bone, rawBone := range doc.Bones {
 		var chans map[string]json.RawMessage
 		if err := json.Unmarshal(rawBone, &chans); err != nil {
-			return nil, fmt.Errorf("skinapi: animation %s, bone %s: %w", name, bone, err)
+			return nil, fmt.Errorf("bedrockskin: animation %s, bone %s: %w", name, bone, err)
 		}
 		ba := &boneAnimation{}
 		for chName, rawCh := range chans {
 			ch, err := parseChannel(rawCh)
 			if err != nil {
-				return nil, fmt.Errorf("skinapi: animation %s, bone %s, %s: %w", name, bone, chName, err)
+				return nil, fmt.Errorf("bedrockskin: animation %s, bone %s, %s: %w", name, bone, chName, err)
 			}
 			if n := len(ch.keys); n > 0 {
 				last = math.Max(last, ch.keys[n-1].t)

@@ -1,4 +1,4 @@
-package skinapi
+package bedrockskin
 
 import (
 	"embed"
@@ -30,7 +30,7 @@ func ExampleAnimations() map[string]*Animation {
 			raw, _ := exampleFiles.ReadFile(p)
 			anims, err := ParseAnimations(raw)
 			if err != nil {
-				panic("skinapi: bundled " + p + ": " + err.Error()) // TestExampleAnimations keeps them valid
+				panic("bedrockskin: bundled " + p + ": " + err.Error()) // TestExampleAnimations keeps them valid
 			}
 			for name, a := range anims {
 				examples[name] = a

@@ -1,4 +1,4 @@
-// Package skinapi renders Minecraft Bedrock skins to images.
+// Package bedrockskin renders Minecraft Bedrock skins to images.
 //
 // It takes a skin texture and, optionally, the skin's geometry.json, and
 // rasterizes them into a square PNG-ready image.Image — no GPU, no headless
@@ -12,7 +12,7 @@
 //	if err != nil {
 //		return err
 //	}
-//	img, err := skinapi.Render(skinapi.Options{Texture: tex})
+//	img, err := bedrockskin.Render(bedrockskin.Options{Texture: tex})
 //
 // That renders the full body of a standard humanoid, straight on, at
 // 512x512. Options selects a different framing, angle, size, bone subset or
@@ -40,16 +40,16 @@
 // both of Bedrock's on-the-wire formats — the modern "minecraft:geometry"
 // array and the pre-1.12 flat top-level-key form — and pass the result:
 //
-//	geos, err := skinapi.ParseGeometry(raw)
+//	geos, err := bedrockskin.ParseGeometry(raw)
 //	if err != nil {
 //		return err
 //	}
-//	img, err := skinapi.Render(skinapi.Options{
+//	img, err := bedrockskin.Render(bedrockskin.Options{
 //		Texture:    tex,
 //		Geometry:   geos,
 //		Identifier: "geometry.humanoid.customSlim",
-//		View:       skinapi.ViewAvatar,
-//		Angle:      skinapi.AngleIso,
+//		View:       bedrockskin.ViewAvatar,
+//		Angle:      bedrockskin.AngleIso,
 //		Size:       256,
 //	})
 //
@@ -109,4 +109,4 @@
 //
 // Comments in this package stay brief and point into those files rather than
 // repeating them.
-package skinapi
+package bedrockskin

@@ -1,4 +1,4 @@
-module github.com/THEBOSS9345/mcpe-skinapi
+module github.com/THEBOSS9345/bedrock-skin-go
 
 go 1.26.5
 
