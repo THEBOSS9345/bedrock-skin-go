@@ -176,6 +176,34 @@ gif, err := bedrockskin.RenderGIFBytes(bedrockskin.AnimationBytesOptions{
 })
 ```
 
+### Skins from the wire
+
+```go
+type WireSkin struct {
+	SkinData              []byte // raw RGBA, SkinWidth*SkinHeight*4. Required.
+	SkinWidth, SkinHeight int
+	CapeData              []byte // raw RGBA; empty for no cape
+	CapeWidth, CapeHeight int
+	Geometry              []byte // SkinGeometryData; empty or "null" is the default model
+	ResourcePatch         []byte // SkinResourcePatch: names the entry to draw
+	Animations            []WireAnimation // {Type AnimatedType; Data []byte; Width, Height int}
+}
+
+func (w WireSkin) Options() (Options, error) // ready to render: set View, Size, ...
+func (w WireSkin) Skin() (*Skin, error)      // the invisibility detector's view
+```
+
+A resource patch that does not parse falls back to the entry with the most cubes; malformed geometry and images whose data does not match their size are errors, named by field (`skin: ...`, `cape: ...`).
+
+### Writing to a stream
+
+```go
+func (o Options) WritePNG(w io.Writer) error
+func WriteGIF(w io.Writer, opts AnimationOptions) error // and the method AnimationOptions.WriteGIF
+```
+
+The same bytes as `RenderPNG` and `RenderGIF`, written as they are encoded.
+
 ### Method forms
 
 Both option types render themselves, if you prefer building and rendering in one expression:

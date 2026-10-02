@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	"image/gif"
+	"io"
 	"math"
 	"runtime"
 	"sort"
@@ -240,9 +241,20 @@ func RenderFrames(opts AnimationOptions) ([]image.Image, error) {
 // (exact for most skins, which use fewer), and transparency is on or off per
 // pixel, as the renderer's alpha test already makes it.
 func RenderGIF(opts AnimationOptions) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := WriteGIF(&buf, opts); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// WriteGIF renders the animation and writes the GIF to w - an HTTP response,
+// a file - without holding the encoded bytes first. It writes the same bytes
+// RenderGIF returns.
+func WriteGIF(w io.Writer, opts AnimationOptions) error {
 	frames, err := RenderFrames(opts)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	fps, _ := opts.timing()
 	pal := gifPalette(frames)
@@ -265,11 +277,7 @@ func RenderGIF(opts AnimationOptions) ([]byte, error) {
 		anim.Delay = append(anim.Delay, delay)
 		anim.Disposal = append(anim.Disposal, gif.DisposalBackground)
 	}
-	var buf bytes.Buffer
-	if err := gif.EncodeAll(&buf, anim); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+	return gif.EncodeAll(w, anim)
 }
 
 // gifPalette is index 0 transparent, then up to 255 opaque colours: every
@@ -311,3 +319,6 @@ func gifPalette(frames []image.Image) color.Palette {
 	}
 	return pal
 }
+
+// WriteGIF is the method form of WriteGIF.
+func (o AnimationOptions) WriteGIF(w io.Writer) error { return WriteGIF(w, o) }

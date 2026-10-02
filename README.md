@@ -140,6 +140,23 @@ Take that identifier from the skin's **resource patch**, not from the login pack
 
 Bone scoping is ancestry-based, so naming `head` also pulls in whatever is parented under it — a hat, hair, ears, a party hat. Custom-geometry skins work with no special-casing and no hardcoded bone list.
 
+## Skins straight from a packet
+
+A proxy or bot holds a skin the way the client sent it: raw RGBA, `null` geometry for a built-in model, a resource patch naming the model, and - for a persona skin - animation images carrying its face. `WireSkin` takes those fields as they are and gives back ready Options, the right model picked and the face attached:
+
+```go
+opts, err := bedrockskin.WireSkin{
+	SkinData: s.SkinData, SkinWidth: int(s.SkinImageWidth), SkinHeight: int(s.SkinImageHeight),
+	CapeData: s.CapeData, CapeWidth: int(s.CapeImageWidth), CapeHeight: int(s.CapeImageHeight),
+	Geometry: s.SkinGeometry, ResourcePatch: s.SkinResourcePatch,
+	Animations: animations, // []WireAnimation{{Type, Data, Width, Height}} from s.Animations
+}.Options()
+opts.View = bedrockskin.ViewAvatar
+err = opts.WritePNG(w) // straight to an http.ResponseWriter
+```
+
+`WireSkin.Skin()` gives the invisibility detector the same fields. `Options.WritePNG` and `WriteGIF` write to any `io.Writer` without holding the encoded bytes first.
+
 ## Parsing request and packet fields
 
 `ParseView`, `ParseAngle` and `ParseParts` turn request parameters into options, and the first two **reject** names they don't recognise rather than silently falling back — so a request for `avatr` is a 400, not a full-body render.
@@ -224,6 +241,15 @@ The library enforces no limits of its own, because what counts as too large is p
 - Bound the geometry document with `Complexity`, which returns total bones and cubes across every entry, before rendering.
 - Bound image dimensions with `ImageDimensions` before a full decode; it reads only the header. A few-KB PNG can declare enormous dimensions and force a huge allocation.
 - Bound concurrency. Each render is single-threaded CPU work, so throughput comes from running several at once — but cap that, to bound memory in flight and fail fast under a spike.
+
+## Try it
+
+```bash
+go run github.com/THEBOSS9345/bedrock-skin-go/cmd/bedrock-skin@latest skin.png avatar.png avatar iso 256
+go run github.com/THEBOSS9345/bedrock-skin-go/cmd/bedrock-skin@latest skin.png dance.gif dance
+```
+
+The arguments are a view (`body`, `chest`, `head`, `avatar`), a motion (`walk`, `idle`, `wave`, `sneak`) or an example animation (`dance`, `backflip`, ...), then an angle and a size; `-geometry` and `-cape` add a model and a cape.
 
 ## Documentation
 

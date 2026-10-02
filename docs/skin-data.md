@@ -131,6 +131,10 @@ A cape is never merged into the body geometry. It arrives as a separate entry, c
 
 Both must be present for a cape to render: geometry with a cape bone, and a cape texture.
 
+## From the packet to a render in one step
+
+`WireSkin` takes these fields as the packet has them - `SkinData` with its width and height, `CapeData` likewise, `SkinGeometryData`, `SkinResourcePatch` and the animation list - and handles everything on this page: it wraps the raw RGBA, treats `null` geometry as the default model, picks the entry the resource patch names, and attaches the animation images so a persona skin's head draws. See the README.
+
 ## A minimal capture server
 
 Roughly 40 lines gets you every skin that connects:

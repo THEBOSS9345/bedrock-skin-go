@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"io"
 
 	_ "image/jpeg" // registered so DecodeImage accepts JPEG as well as PNG
 )
@@ -255,6 +256,17 @@ func EncodePNG(img image.Image) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// WritePNG renders these options and writes the PNG to w - an HTTP response,
+// a file - without holding the encoded bytes first. It writes the same bytes
+// RenderPNG returns.
+func (o Options) WritePNG(w io.Writer) error {
+	img, err := Render(o)
+	if err != nil {
+		return err
+	}
+	return png.Encode(w, img)
 }
 
 // TextureFromRGBA wraps raw non-premultiplied RGBA pixel data as an image,
