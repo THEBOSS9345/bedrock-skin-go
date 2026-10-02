@@ -132,6 +132,12 @@ Parallel wins by 2.7× on a single isolated render and *loses* by 14% under conc
 
 The cost is real but small in absolute terms: a few extra milliseconds on a one-off render, against a race-free library that is faster under load. `bench_test.go` holds the benchmarks if you want to re-measure.
 
+## Why animation frames render in parallel
+
+One render stays on one core (above), but an animation is many renders that share nothing: once every frame's scene is built and the one camera fitted around the whole motion, each frame rasterizes into its own buffers. So the frames are drawn by several workers at once - `Workers` in Go, `workers` in Rust, every core by default - and each lands in its own slot, which makes the result identical to drawing them one at a time; a test checks exactly that. A 20 fps walk at 256px went from 16 ms to 5-6 ms in both libraries on a loaded 28-thread machine.
+
+Building the scenes stays sequential: it is cheap, and the camera needs every frame's extent before any frame can be drawn. A server that already renders one request per core can set the workers to 1 so a GIF does not take more than its share.
+
 ## Concurrency
 
 Each render occupies exactly one goroutine, so parallelism comes from running several renders at once rather than from splitting one. That makes the scaling story simple: throughput rises with concurrency up to the core count.

@@ -7,8 +7,10 @@ import (
 	"image/color"
 	"image/gif"
 	"math"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/fogleman/fauxgl"
 )
@@ -143,6 +145,11 @@ type AnimationOptions struct {
 	FPS int
 	// Frames is how many frames to render; zero means one loop.
 	Frames int
+	// Workers is how many frames are rasterized at once; zero means
+	// GOMAXPROCS, one means one at a time. Frames are independent, so the
+	// images are the same either way; a server already rendering on every
+	// core may want 1. See docs/design-decisions.md#why-animation-frames-render-in-parallel.
+	Workers int
 }
 
 // ErrNoAnimation is returned by RenderFrames and RenderGIF without an
@@ -195,9 +202,36 @@ func RenderFrames(opts AnimationOptions) ([]image.Image, error) {
 	first := scenes[0]
 	eye, center := cameraForYawPitch(sweep, first.fov, first.margin, first.yaw, first.pitch)
 	out := make([]image.Image, frames)
-	for i, sc := range scenes {
-		out[i] = rasterize(sc.layers, eye, center, sc.fov, sc.size)
+	workers := opts.Workers
+	if workers <= 0 {
+		workers = runtime.GOMAXPROCS(0)
 	}
+	workers = min(workers, frames)
+	if workers == 1 {
+		for i, sc := range scenes {
+			out[i] = rasterize(sc.layers, eye, center, sc.fov, sc.size)
+		}
+		return out, nil
+	}
+	// Each frame has its own buffers and its own slot in out, so the
+	// workers share nothing but the read-only scenes and textures.
+	next := make(chan int, frames)
+	for i := range scenes {
+		next <- i
+	}
+	close(next)
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range next {
+				sc := scenes[i]
+				out[i] = rasterize(sc.layers, eye, center, sc.fov, sc.size)
+			}
+		}()
+	}
+	wg.Wait()
 	return out, nil
 }
 
