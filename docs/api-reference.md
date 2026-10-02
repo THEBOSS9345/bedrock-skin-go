@@ -142,6 +142,7 @@ type BytesOptions struct {
 	Texture    []byte // encoded PNG/JPEG. Required.
 	Geometry   []byte // raw geometry.json. Nil, empty or "null" uses the default.
 	Cape       []byte // encoded PNG/JPEG.
+	Animated   []AnimatedTextureBytes // a persona's animation images, encoded: {Type, Texture []byte}
 	Identifier string
 	View       View
 	Angle      Angle
@@ -152,6 +153,28 @@ type BytesOptions struct {
 ```
 
 Every field behaves exactly as its `Options` counterpart.
+
+### Animations from bytes
+
+```go
+type AnimationBytesOptions struct {
+	BytesOptions
+	Animation Animator // required; ErrNoAnimation without one
+	FPS, Frames, Workers int
+}
+
+func RenderGIFBytes(opts AnimationBytesOptions) ([]byte, error)    // the animation as GIF bytes
+func RenderFramesPNG(opts AnimationBytesOptions) ([][]byte, error) // every frame as PNG bytes, in order
+```
+
+`RenderGIF` and `RenderFrames` with the decode and encode folded in - the same GIF and the same frames, byte for byte. Both have method forms on `AnimationBytesOptions`.
+
+```go
+gif, err := bedrockskin.RenderGIFBytes(bedrockskin.AnimationBytesOptions{
+	BytesOptions: bedrockskin.BytesOptions{Texture: textureBytes, Size: 256},
+	Animation:    bedrockskin.MotionWalk,
+})
+```
 
 ### Method forms
 
