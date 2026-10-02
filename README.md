@@ -146,7 +146,19 @@ gifBytes, err := skinapi.RenderGIF(skinapi.AnimationOptions{
 })
 ```
 
-See [docs/animation.md](docs/animation.md).
+33 example animations come bundled — dances, emotes, a backflip, fighting moves — as `ExampleAnimations()` and as files in [examples/animations](examples/animations). Not every Minecraft animation plays on every model: an animation moves bones by name, so one made for a mob with wings or a tail does nothing on a player, and ones driven by the game's state (where a mob looks, what it holds) hold still. `MissingBones` tells you. See [docs/animation.md](docs/animation.md).
+
+## Reading geometry files
+
+`ParseGeometryTree` reads a whole geometry file and picks any value out of it by path, the way bones are picked by name:
+
+```go
+tree, _ := skinapi.ParseGeometryTree(raw)
+pivot, _ := tree.Get("geometry.humanoid.custom/bones/rightArm/pivot") // [-5, 22, 0]
+sizes := tree.Select("*/bones/*/cubes/*/size")                       // every cube's size
+```
+
+See [docs/geometry-format.md](docs/geometry-format.md#picking-values-out-of-a-file).
 
 ## Persona skins
 

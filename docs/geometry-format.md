@@ -95,6 +95,21 @@ jacket
 
 Custom skins add their own bones to this — ears, tails, wings, hats — parented somewhere in the standard tree. Nothing in this library hardcodes that list; see [views-and-cameras.md](views-and-cameras.md).
 
+### Everything else in a bone
+
+The schema has more than the renderer uses. These are read into `Bone` too, so a whole file can be inspected:
+
+| Field | `Bone` field | Meaning |
+| --- | --- | --- |
+| `locators` | `Locators map[string]Locator` | Named points: where an item is held, a lead ties, particles start. Written as `[x, y, z]` or `{"offset": [...], "rotation": [...]}`; both read into `Locator`. A malformed one reads as empty instead of failing the model. |
+| `bind_pose_rotation` | `BindPoseRotation` | The rest rotation an animation is relative to. |
+| `poly_mesh` | `PolyMesh` (raw JSON) | Free-form polygons instead of cubes. **Not drawn.** |
+| `texture_meshes` | `TextureMeshes` (raw JSON) | A texture drawn as a flat mesh. **Not drawn.** |
+
+The renderer draws cubes only. Anything else in the file — fields no type covers — is still reachable through a [geometry tree](#picking-values-out-of-a-file).
+
+`Geometry.Children(name)` lists a bone's direct children; `Geometry.Locator(name)` finds a locator on any bone and says which. A model's `visible_bounds_width`, `visible_bounds_height` and `visible_bounds_offset` read into `Geometry.VisibleBounds*`.
+
 ## Cubes
 
 ```json
@@ -170,6 +185,8 @@ Each face gets its own explicit rectangle:
 
 Faces that are absent are simply not drawn. This form is used by custom models whose parts do not fit the box layout.
 
+`Cube.BoxUV()` returns the `[u, v]` origin of a box-UV cube, and `Cube.FaceUVs()` the per-face areas (`uv`, `uv_size`, `uv_rotation`, `material_instance`) by face name, so neither form needs decoding by hand.
+
 ### Coordinates are in texture pixels
 
 Both forms give coordinates in **texture pixels**, not normalized 0–1. Conversion to normalized coordinates uses the entry's declared `texture_width` / `texture_height`, which is why those fields matter and why a mismatch between declared and actual texture size skews the whole model.
@@ -189,3 +206,46 @@ One trap in the code: fauxgl's `Rotate` turns the opposite way to the standard r
 This was long the one unverified corner: the first captures all had `rotation: [0, 0, 0]`. It is now checked against Minecraft's own animations as above, and against real captured geometry with rotated bones and cubes (a CubeCraft galaxy costume with tilted rings, planets and stars; Hive and Galaxite cosmetics), which renders identically to an independent three.js implementation of the same convention. `TestCubeRotation` pins the cube case with a procedural model.
 
 Everything else in this document was verified against captures.
+
+## Picking values out of a file
+
+`ParseGeometryTree` reads a whole geometry file — every field, including any no type here covers — and picks values out of it by path, the way bones are picked by name:
+
+```go
+tree, err := skinapi.ParseGeometryTree(raw)
+
+// One value.
+v, ok := tree.Get("geometry.humanoid.custom/bones/rightArm/pivot")
+pivot, _ := v.Floats() // [-5 22 0]
+
+// One number in it.
+v, _ = tree.Get("geometry.humanoid.custom/bones/rightArm/cubes/0/size/1")
+height, _ := v.Float() // 12
+
+// Everything matching, across every model.
+for _, v := range tree.Select("*/bones/*/cubes/*/size") {
+	fmt.Println(v.Path, v.JSON()) // geometry.cape/bones/cape/cubes/0/size [10,16,1] ...
+}
+
+// A whole bone, typed.
+var arm skinapi.Bone
+v, _ = tree.Get("geometry.humanoid.custom/bones/rightArm")
+err = v.Decode(&arm)
+```
+
+A path is segments separated by `/`. The first picks a model by identifier; the rest walk into it:
+
+| Segment | Picks |
+| --- | --- |
+| a field name | that field of an object: `description`, `bones`, `pivot`, `locators`, `uv` |
+| a number | that element of a list, from 0; `-1` is the last |
+| a name | for a list of named things (bones), the one with that `name`: `bones/rightArm` |
+| `*` | every model, field or element at that level |
+
+Names match exactly, else case-insensitively, as the game matches bones. An empty path returns the models themselves.
+
+Both wire formats read into the modern shape, so one path works on either: a legacy model's `texturewidth`, `textureheight` and visible bounds move into a `description`, alongside its `identifier`. A legacy model that inherits from another — `"geometry.hat:geometry.humanoid"` — keeps that full name and is also picked by the part before the colon.
+
+Each result is a `GeometryValue`: its canonical `Path` (bones by name, so results read clearly) and its `Value` as `encoding/json` reads JSON — `map[string]any`, `[]any`, `float64`, `string`, `bool` or `nil`. `Float`, `Floats` and `Text` convert; `Decode` fills any type (a `Bone`, `Cube`, `Locator`); `JSON` re-encodes it.
+
+`tree.Identifiers()` lists the models and `tree.Geometries()` returns the typed ones, both in the same order as `ParseGeometry`. A tree is for reading; rendering takes `[]Geometry`.

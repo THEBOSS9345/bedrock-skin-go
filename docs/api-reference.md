@@ -314,6 +314,32 @@ Returns `false` only when `geos` is empty.
 
 Finds the entry containing a bone literally named `cape` that has at least one cube. Capes always live in their own entry, never merged into the body.
 
+### `func ParseGeometryTree(raw []byte) (*GeometryTree, error)`
+
+Reads a whole geometry file, every field kept, to pick values out of by path. `ErrNoGeometryModels` for valid JSON holding none. See [geometry-format.md](geometry-format.md#picking-values-out-of-a-file).
+
+```go
+type GeometryTree struct {
+	FormatVersion string
+}
+
+func (t *GeometryTree) Select(path string) []GeometryValue  // every match, in file order
+func (t *GeometryTree) Get(path string) (GeometryValue, bool) // the first match
+func (t *GeometryTree) Identifiers() []string
+func (t *GeometryTree) Geometries() ([]Geometry, error)     // as ParseGeometry
+
+type GeometryValue struct {
+	Path  string // canonical: "geometry.humanoid.custom/bones/rightArm/pivot"
+	Value any    // map[string]any, []any, float64, string, bool or nil
+}
+
+func (v GeometryValue) Float() (float64, bool)
+func (v GeometryValue) Floats() ([]float64, bool)
+func (v GeometryValue) Text() (string, bool)
+func (v GeometryValue) Decode(dst any) error
+func (v GeometryValue) JSON() []byte
+```
+
 ### `func IsEmpty(raw []byte) bool`
 
 Reports whether raw geometry carries no mesh at all — empty, whitespace, or the literal `null` (with or without a trailing newline). Use it to separate "this skin has no custom model" from "this upload is broken" before parsing.
@@ -388,6 +414,14 @@ type Animation struct {
 ```
 
 **`func (a *Animation) Pose(t float64) Pose`** and **`Duration() float64`**: it satisfies `Animator`.
+
+**`func (a *Animation) Bones() []string`** — the bones it moves, as the file names them.
+
+**`func (a *Animation) MissingBones(g Geometry) []string`** — the bones it moves that `g` lacks, which will do nothing on that model. See [animation.md](animation.md#which-minecraft-animations-work).
+
+### `func ExampleAnimations() map[string]*Animation`
+
+The 33 bundled example animations for the player model, by name (`"animation.player.dance"`). See [animation.md](animation.md#example-animations).
 
 ### `func RenderFrames(opts AnimationOptions) ([]image.Image, error)`
 
@@ -593,12 +627,20 @@ type Geometry struct {
 	TextureWidth  float64
 	TextureHeight float64
 	Bones         []Bone
+
+	VisibleBoundsWidth  float64
+	VisibleBoundsHeight float64
+	VisibleBoundsOffset []float64
 }
 ```
 
 One normalized model, regardless of which wire format it came from.
 
 **`func (g *Geometry) BoneByName(name string) (Bone, bool)`** — look up a bone.
+
+**`func (g *Geometry) Children(name string) []Bone`** — a bone's direct children, in file order.
+
+**`func (g *Geometry) Locator(name string) (Locator, Bone, bool)`** — a locator on any bone, and the bone it is on.
 
 **`func (g *Geometry) TotalCubes() int`** — cubes across every bone. **Zero means a persona skin**: real bones, no mesh.
 
@@ -613,10 +655,21 @@ type Bone struct {
 	Inflate  float64
 	Mirror   bool
 	Cubes    []Cube
+
+	BindPoseRotation []float64
+	Locators         map[string]Locator
+	PolyMesh         json.RawMessage // parsed, not drawn
+	TextureMeshes    json.RawMessage // parsed, not drawn
+}
+
+type Locator struct {
+	Offset               []float64
+	Rotation             []float64
+	IgnoreInheritedScale bool
 }
 ```
 
-`Rotation` follows the geometry convention in [geometry-format.md](geometry-format.md#rotation), as do animation rotations.
+See [geometry-format.md](geometry-format.md#everything-else-in-a-bone). `Rotation` follows the geometry convention in [geometry-format.md](geometry-format.md#rotation), as do animation rotations.
 
 ### `type Cube`
 
@@ -633,6 +686,8 @@ type Cube struct {
 ```
 
 `Rotation` turns the cube about `Pivot` (model space; the cube's centre when absent). A cube mirrors when its own `Mirror` or its bone's is set.
+
+**`func (c Cube) BoxUV() (u, v float64, ok bool)`** and **`func (c Cube) FaceUVs() map[string]FaceUV`** read the two uv forms; `FaceUV` has `UV`, `UVSize`, `UVRotation` and `MaterialInstance`.
 
 `UV` stays raw because Bedrock allows two shapes — a `[u,v]` pair or a per-face object — resolved at mesh-build time. `Inflate` is a pointer so an explicit `0` can be told apart from absent, which matters since absent means "inherit the bone's value".
 
