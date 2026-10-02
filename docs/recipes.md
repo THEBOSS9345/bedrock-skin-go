@@ -11,7 +11,7 @@ import (
 	"image/png"
 	"os"
 
-	skinapi "github.com/THEBOSS9345/mcpe-skinapi"
+	bedrockskin "github.com/THEBOSS9345/bedrock-skin-go"
 )
 
 func main() {
@@ -26,7 +26,7 @@ func main() {
 		panic(err)
 	}
 
-	img, err := skinapi.Render(skinapi.Options{Texture: tex})
+	img, err := bedrockskin.Render(bedrockskin.Options{Texture: tex})
 	if err != nil {
 		panic(err)
 	}
@@ -48,10 +48,10 @@ func main() {
 If you already hold file bytes — from an upload, a database, a cache — skip the decode/encode entirely:
 
 ```go
-out, err := skinapi.RenderBytes(skinapi.BytesOptions{
+out, err := bedrockskin.RenderBytes(bedrockskin.BytesOptions{
 	Texture:  textureBytes,  // encoded PNG or JPEG
 	Geometry: geometryBytes, // raw geometry.json; nil or "null" is fine
-	View:     skinapi.ViewAvatar,
+	View:     bedrockskin.ViewAvatar,
 	Size:     128,
 })
 if err != nil {
@@ -65,7 +65,7 @@ if err != nil {
 The two paths produce identical output, so mix them freely. If you have a decoded image but want bytes back:
 
 ```go
-raw, err := skinapi.Options{Texture: tex, View: skinapi.ViewHead}.RenderPNG()
+raw, err := bedrockskin.Options{Texture: tex, View: bedrockskin.ViewHead}.RenderPNG()
 ```
 
 ## A profile-picture avatar
@@ -73,10 +73,10 @@ raw, err := skinapi.Options{Texture: tex, View: skinapi.ViewHead}.RenderPNG()
 Tight head crop at the classic angle. This is the most common use.
 
 ```go
-img, err := skinapi.Render(skinapi.Options{
+img, err := bedrockskin.Render(bedrockskin.Options{
 	Texture: tex,
-	View:    skinapi.ViewAvatar,
-	Angle:   skinapi.AngleIso,
+	View:    bedrockskin.ViewAvatar,
+	Angle:   bedrockskin.AngleIso,
 	Size:    128,
 })
 ```
@@ -95,16 +95,16 @@ func renderPlayer(data login.ClientData) (image.Image, error) {
 	if err != nil {
 		return nil, err
 	}
-	tex, err := skinapi.TextureFromRGBA(raw, data.SkinImageWidth, data.SkinImageHeight)
+	tex, err := bedrockskin.TextureFromRGBA(raw, data.SkinImageWidth, data.SkinImageHeight)
 	if err != nil {
 		return nil, err
 	}
 
 	// Geometry: usually the literal "null".
-	var geos []skinapi.Geometry
+	var geos []bedrockskin.Geometry
 	if geomRaw, err := base64.StdEncoding.DecodeString(data.SkinGeometry); err == nil {
-		if !skinapi.IsEmpty(geomRaw) {
-			if geos, err = skinapi.ParseGeometry(geomRaw); err != nil {
+		if !bedrockskin.IsEmpty(geomRaw) {
+			if geos, err = bedrockskin.ParseGeometry(geomRaw); err != nil {
 				return nil, fmt.Errorf("geometry: %w", err)
 			}
 		}
@@ -124,11 +124,11 @@ func renderPlayer(data login.ClientData) (image.Image, error) {
 		}
 	}
 
-	return skinapi.Render(skinapi.Options{
+	return bedrockskin.Render(bedrockskin.Options{
 		Texture:    tex,       // required
 		Geometry:   geos,      // nil is normal and correct
 		Identifier: identifier, // "" is fine
-		View:       skinapi.ViewBody,
+		View:       bedrockskin.ViewBody,
 	})
 }
 ```
@@ -140,10 +140,10 @@ Every optional piece degrades to a sensible default, so partial data still rende
 A cape needs a texture. The cape entry is taken from the geometry you supply, or from the bundled `geometry.cape` when that geometry has none — which is the usual case for a skin with a custom mesh, since capes always travel in their own entry. Head and avatar views don't show a cape, so one isn't drawn for them.
 
 ```go
-img, err := skinapi.Render(skinapi.Options{
+img, err := bedrockskin.Render(bedrockskin.Options{
 	Texture: tex,
 	Cape:    capeTex,
-	View:    skinapi.ViewBody,
+	View:    bedrockskin.ViewBody,
 })
 ```
 
@@ -152,9 +152,9 @@ To check whether the skin's own geometry carries a cape entry, rather than relyi
 ```go
 geos := opts.Geometry
 if len(geos) == 0 {
-	geos = skinapi.DefaultGeometry()
+	geos = bedrockskin.DefaultGeometry()
 }
-if _, ok := skinapi.FindCape(geos); !ok {
+if _, ok := bedrockskin.FindCape(geos); !ok {
 	// This skin's geometry has no cape bone; the bundled geometry.cape is used.
 }
 ```
@@ -167,9 +167,9 @@ Because framing is derived from the bounding box, every frame stays the same siz
 const frames = 36
 
 for i := 0; i < frames; i++ {
-	img, err := skinapi.Render(skinapi.Options{
+	img, err := bedrockskin.Render(bedrockskin.Options{
 		Texture: tex,
-		Camera:  &skinapi.Camera{Yaw: float64(i) * (360.0 / frames), Pitch: 10},
+		Camera:  &bedrockskin.Camera{Yaw: float64(i) * (360.0 / frames), Pitch: 10},
 		Size:    256,
 	})
 	if err != nil {
@@ -182,10 +182,10 @@ for i := 0; i < frames; i++ {
 ## Just the head and one arm
 
 ```go
-img, err := skinapi.Render(skinapi.Options{
+img, err := bedrockskin.Render(bedrockskin.Options{
 	Texture: tex,
 	Parts:   []string{"head", "rightArm"},
-	Camera:  &skinapi.Camera{Yaw: 25, Pitch: 10},
+	Camera:  &bedrockskin.Camera{Yaw: 25, Pitch: 10},
 })
 ```
 
@@ -194,7 +194,7 @@ Each name pulls in its descendants, so `head` also brings the hat and any custom
 Taking that list from a request or a flag:
 
 ```go
-parts := skinapi.ParseParts(r.FormValue("parts")) // "head, rightArm"
+parts := bedrockskin.ParseParts(r.FormValue("parts")) // "head, rightArm"
 ```
 
 ## Handling untrusted uploads
@@ -217,21 +217,21 @@ if len(geomBytes) > maxGeometryBytes {
 	return errTooLarge
 }
 
-geos, err := skinapi.ParseGeometry(geomBytes)
+geos, err := bedrockskin.ParseGeometry(geomBytes)
 if err != nil {
 	return err
 }
 
 // 2. Bound mesh-building cost. Complexity sums across every entry, which is
 //    what actually bounds worst-case work.
-if bones, cubes := skinapi.Complexity(geos); bones > maxBones || cubes > maxCubes {
+if bones, cubes := bedrockskin.Complexity(geos); bones > maxBones || cubes > maxCubes {
 	return errTooComplex
 }
 
 // 3. Bound image dimensions BEFORE decoding. ImageDimensions reads only the
 //    header — this is the actual decompression-bomb defense. A few-KB PNG
 //    can declare enormous dimensions and force a huge allocation.
-w, h, err := skinapi.ImageDimensions(imgBytes)
+w, h, err := bedrockskin.ImageDimensions(imgBytes)
 if err != nil {
 	return err
 }
@@ -239,7 +239,7 @@ if w > maxDimension || h > maxDimension {
 	return errTooBig
 }
 
-tex, err := skinapi.DecodeImage(imgBytes)
+tex, err := bedrockskin.DecodeImage(imgBytes)
 if err != nil {
 	return err
 }
@@ -257,14 +257,14 @@ Each render occupies one goroutine, so throughput comes from running several at 
 ```go
 var renderSlots = make(chan struct{}, 4)
 
-func render(opts skinapi.Options) (image.Image, error) {
+func render(opts bedrockskin.Options) (image.Image, error) {
 	select {
 	case renderSlots <- struct{}{}:
 		defer func() { <-renderSlots }()
 	case <-time.After(10 * time.Second):
 		return nil, errAtCapacity // fail fast rather than queue forever
 	}
-	return skinapi.Render(opts)
+	return bedrockskin.Render(opts)
 }
 ```
 
@@ -292,24 +292,24 @@ func handleRender(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var geos []skinapi.Geometry
+	var geos []bedrockskin.Geometry
 	if gf, _, err := r.FormFile("geometry"); err == nil {
 		defer gf.Close()
 		raw, err := io.ReadAll(gf)
-		if err == nil && !skinapi.IsEmpty(raw) {
-			if geos, err = skinapi.ParseGeometry(raw); err != nil {
+		if err == nil && !bedrockskin.IsEmpty(raw) {
+			if geos, err = bedrockskin.ParseGeometry(raw); err != nil {
 				http.Error(w, "bad geometry", http.StatusBadRequest)
 				return
 			}
 		}
 	}
 
-	img, err := skinapi.Render(skinapi.Options{
+	img, err := bedrockskin.Render(bedrockskin.Options{
 		Texture:    tex,
 		Geometry:   geos,
 		Identifier: r.FormValue("identifier"),
-		View:       skinapi.View(r.FormValue("view")),
-		Angle:      skinapi.Angle(r.FormValue("angle")),
+		View:       bedrockskin.View(r.FormValue("view")),
+		Angle:      bedrockskin.Angle(r.FormValue("angle")),
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
@@ -326,7 +326,7 @@ Note that an empty or unrecognised `view`/`angle` is not an error — both fall 
 ## Inspecting a model
 
 ```go
-geos, err := skinapi.ParseGeometry(raw)
+geos, err := bedrockskin.ParseGeometry(raw)
 if err != nil {
 	return err
 }
@@ -348,12 +348,12 @@ Useful for finding the extra bones on a custom skin so you can name them in `Par
 Block the "invisible player" hack: a skin whose texture is blank, mostly transparent, or whose only visible part is a single limb (`tiny` skin). Pass the texture plus its geometry (geometry makes detection strict; omit it for the standard-layout fallback).
 
 ```go
-skin := skinapi.NewSkin(tex, geoBytes) // geoBytes may be nil
+skin := bedrockskin.NewSkin(tex, geoBytes) // geoBytes may be nil
 
 switch rep := skin.Report(); rep.Verdict {
-case skinapi.VerdictInvisible:
+case bedrockskin.VerdictInvisible:
 	log.Printf("invisible skin: %v missing", rep.InvisibleParts())
-case skinapi.VerdictSuspicious:
+case bedrockskin.VerdictSuspicious:
 	log.Printf("suspicious: %d of %d standard parts render (%v missing)",
 		rep.VisibleParts, rep.TotalParts, rep.InvisibleParts())
 }
@@ -367,11 +367,11 @@ if !skin.OK() {
 Low-level equivalents, for a raw result or custom thresholds:
 
 ```go
-vr := skinapi.ValidateSkinInvisibility(tex, geoBytes) // combined geo + texture check
-ivr := skinapi.ValidateSkinVisibility(tex, geoBytes, skinapi.DefaultMinVisibleFraction)
-gsr := skinapi.ValidateGeometrySize(geoBytes, skinapi.DefaultMinGeometrySize) // tiny bones?
-inv := skinapi.IsSkinInvisible(tex) // texture-only, any size
-tiny := skinapi.IsSkinTiny(geoBytes)
+vr := bedrockskin.ValidateSkinInvisibility(tex, geoBytes) // combined geo + texture check
+ivr := bedrockskin.ValidateSkinVisibility(tex, geoBytes, bedrockskin.DefaultMinVisibleFraction)
+gsr := bedrockskin.ValidateGeometrySize(geoBytes, bedrockskin.DefaultMinGeometrySize) // tiny bones?
+inv := bedrockskin.IsSkinInvisible(tex) // texture-only, any size
+tiny := bedrockskin.IsSkinTiny(geoBytes)
 ```
 
 Persona skins are Mojang-curated and are never flagged invisible or suspicious - meaning geometry that parsed into bones, none carrying cubes. Geometry that fails to parse is not treated as a persona skin; it falls back to the texture-only check, so junk geometry can't be used to bypass detection. An opaque cape never masks an invisible body either.

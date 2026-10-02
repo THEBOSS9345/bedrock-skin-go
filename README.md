@@ -1,12 +1,26 @@
-# mcpe-skinapi
+# bedrock-skin
 
-Render Minecraft Bedrock skins to images, in pure Go.
+**Render Minecraft Bedrock skins to PNG and GIF, in pure Go.** 3D bodies, heads and avatars, capes, slim and wide arms, custom geometry, persona skins, animations from Blockbench files, and a detector for invisible skins.
 
-Texture in, `image.Image` out. No GPU, no headless browser, no external process — a small software rasterizer built on [fauxgl](https://github.com/fogleman/fauxgl).
+<p align="center">
+  <img src="docs/images/body-front.png" width="160" alt="A skin rendered full body, front on">
+  <img src="docs/images/body-iso.png" width="160" alt="The same skin from an angle">
+  <img src="docs/images/avatar.png" width="160" alt="The skin's head as an avatar">
+  <img src="docs/images/walk.gif" width="160" alt="The skin walking">
+  <img src="docs/images/dance.gif" width="160" alt="The skin dancing">
+</p>
+
+Texture in, `image.Image` out. No GPU, no headless browser, no external process — a small software rasterizer built on [fauxgl](https://github.com/fogleman/fauxgl). It reads skins the way a Bedrock (MCPE) client sends them, so it drops straight into a proxy, a server plugin, a Discord bot or a website.
 
 ```bash
-go get github.com/THEBOSS9345/mcpe-skinapi
+go get github.com/THEBOSS9345/bedrock-skin-go
 ```
+
+```go
+import bedrockskin "github.com/THEBOSS9345/bedrock-skin-go"
+```
+
+The package is `bedrockskin`. A Rust version, `bedrock-skin`, is on the way, built to render the same images.
 
 ## Quick start
 
@@ -17,7 +31,7 @@ import (
 	"image/png"
 	"os"
 
-	skinapi "github.com/THEBOSS9345/mcpe-skinapi"
+	bedrockskin "github.com/THEBOSS9345/bedrock-skin-go"
 )
 
 func main() {
@@ -32,7 +46,7 @@ func main() {
 		panic(err)
 	}
 
-	img, err := skinapi.Render(skinapi.Options{Texture: tex})
+	img, err := bedrockskin.Render(bedrockskin.Options{Texture: tex})
 	if err != nil {
 		panic(err)
 	}
@@ -53,10 +67,10 @@ That renders the full body of a standard humanoid, straight on, at 512×512.
 If you already hold encoded bytes and want encoded bytes back, skip the decode and encode:
 
 ```go
-out, err := skinapi.RenderBytes(skinapi.BytesOptions{
+out, err := bedrockskin.RenderBytes(bedrockskin.BytesOptions{
 	Texture:  textureBytes,  // encoded PNG or JPEG
 	Geometry: geometryBytes, // raw geometry.json; nil or "null" is fine
-	View:     skinapi.ViewAvatar,
+	View:     bedrockskin.ViewAvatar,
 	Size:     128,
 })
 ```
@@ -64,8 +78,8 @@ out, err := skinapi.RenderBytes(skinapi.BytesOptions{
 Both paths run the same renderer and produce identical output — use whichever fits. Options render themselves too, if you prefer:
 
 ```go
-img, err := skinapi.Options{Texture: tex}.Render()     // image.Image
-raw, err := skinapi.Options{Texture: tex}.RenderPNG()  // []byte
+img, err := bedrockskin.Options{Texture: tex}.Render()     // image.Image
+raw, err := bedrockskin.Options{Texture: tex}.RenderPNG()  // []byte
 ```
 
 Skins coming off the wire arrive as raw RGBA rather than an encoded image; `TextureFromRGBA` wraps those without copying.
@@ -85,17 +99,17 @@ Both ends already have the model, so it never travels the wire. Geometry only sh
 When a skin *does* carry geometry, parse and pass it:
 
 ```go
-geos, err := skinapi.ParseGeometry(raw)
+geos, err := bedrockskin.ParseGeometry(raw)
 if err != nil {
 	return err
 }
 
-img, err := skinapi.Render(skinapi.Options{
+img, err := bedrockskin.Render(bedrockskin.Options{
 	Texture:    tex,
 	Geometry:   geos,
 	Identifier: "geometry.humanoid.customSlim",
-	View:       skinapi.ViewAvatar,
-	Angle:      skinapi.AngleIso,
+	View:       bedrockskin.ViewAvatar,
+	Angle:      bedrockskin.AngleIso,
 	Size:       256,
 })
 ```
@@ -139,10 +153,10 @@ Every error `Render` returns is bad caller input and has a sentinel — `ErrNoTe
 Skins move too: Minecraft's own player motions built in (`MotionWalk`, `MotionIdle`, `MotionWave`, `MotionSneak`), or any animation from a Bedrock animation file - what Blockbench exports - with keyframes, smooth interpolation and Molang expressions. `RenderGIF` makes a looping GIF; `RenderFrames` returns the frames; `Options.Pose` renders one pose as a still.
 
 ```go
-anims, _ := skinapi.ParseAnimations(blockbenchExport)
-gifBytes, err := skinapi.RenderGIF(skinapi.AnimationOptions{
-	Options:   skinapi.Options{Texture: tex, Size: 256},
-	Animation: anims["animation.player.wave"], // or skinapi.MotionWalk
+anims, _ := bedrockskin.ParseAnimations(blockbenchExport)
+gifBytes, err := bedrockskin.RenderGIF(bedrockskin.AnimationOptions{
+	Options:   bedrockskin.Options{Texture: tex, Size: 256},
+	Animation: anims["animation.player.wave"], // or bedrockskin.MotionWalk
 })
 ```
 
@@ -153,7 +167,7 @@ gifBytes, err := skinapi.RenderGIF(skinapi.AnimationOptions{
 `ParseGeometryTree` reads a whole geometry file and picks any value out of it by path, the way bones are picked by name:
 
 ```go
-tree, _ := skinapi.ParseGeometryTree(raw)
+tree, _ := bedrockskin.ParseGeometryTree(raw)
 pivot, _ := tree.Get("geometry.humanoid.custom/bones/rightArm/pivot") // [-5, 22, 0]
 sizes := tree.Select("*/bones/*/cubes/*/size")                       // every cube's size
 ```
@@ -169,14 +183,14 @@ Persona (avatar-builder) skins have real bones but no cubes at all, because Bedr
 The same inputs also feed an **invisibility detector** - for blocking the "invisible player" hack. Bundle a texture with its geometry and ask the high-level `Skin` type:
 
 ```go
-skin := skinapi.NewSkin(tex, geoBytes) // geoBytes may be nil
+skin := bedrockskin.NewSkin(tex, geoBytes) // geoBytes may be nil
 
 switch rep := skin.Report(); rep.Verdict {
-case skinapi.VerdictInvisible:
+case bedrockskin.VerdictInvisible:
 	// nothing renders, or only a stray limb
-case skinapi.VerdictSuspicious:
+case bedrockskin.VerdictSuspicious:
 	// some standard parts missing, but not all - a soft signal
-case skinapi.VerdictOK:
+case bedrockskin.VerdictOK:
 	// renders normally
 }
 ```
@@ -234,6 +248,8 @@ Practical notes:
 ## Notes
 
 The bundled `default_geometry.json` is the vanilla humanoid model, captured from a real Bedrock client rather than hand-authored, so it matches what the game draws. It is Mojang's model data, included here for interoperability.
+
+The pictures at the top are rendered by this library from `testdata/bench-skin`, the scrubbed skin the benchmarks use.
 
 ## License
 

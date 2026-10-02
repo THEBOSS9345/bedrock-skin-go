@@ -1,4 +1,4 @@
-package skinapi
+package bedrockskin
 
 import (
 	"bytes"
@@ -335,11 +335,11 @@ type resourcePatchDoc struct {
 // ParseResourcePatch decodes a skin's resource patch and returns the geometry
 // identifiers it names.
 //
-//	patch, err := skinapi.ParseResourcePatch(raw)
+//	patch, err := bedrockskin.ParseResourcePatch(raw)
 //	if err != nil {
 //		return err
 //	}
-//	img, err := skinapi.Render(skinapi.Options{
+//	img, err := bedrockskin.Render(bedrockskin.Options{
 //		Texture:    tex,
 //		Geometry:   geos,
 //		Identifier: patch.Default,
@@ -361,7 +361,7 @@ func ParseResourcePatch(raw []byte) (ResourcePatch, error) {
 	}
 	var doc resourcePatchDoc
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		return ResourcePatch{}, fmt.Errorf("skinapi: resource patch: %w", err)
+		return ResourcePatch{}, fmt.Errorf("bedrockskin: resource patch: %w", err)
 	}
 	return ResourcePatch{Default: doc.Geometry.Default, Cape: doc.Geometry.Cape}, nil
 }

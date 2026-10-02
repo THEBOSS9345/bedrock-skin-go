@@ -73,11 +73,11 @@ The practical consequences:
 - `IsEmpty` exists precisely to separate "this skin has no custom mesh" from "this upload is broken":
 
   ```go
-  if skinapi.IsEmpty(raw) {
+  if bedrockskin.IsEmpty(raw) {
       // Use the built-in model.
       geos = nil
   } else {
-      geos, err = skinapi.ParseGeometry(raw)
+      geos, err = bedrockskin.ParseGeometry(raw)
       if err != nil {
           return err // genuinely malformed, not just absent
       }
@@ -108,7 +108,7 @@ var patch struct {
 raw, _ := base64.StdEncoding.DecodeString(data.SkinResourcePatch)
 json.Unmarshal(raw, &patch)
 
-img, err := skinapi.Render(skinapi.Options{
+img, err := bedrockskin.Render(bedrockskin.Options{
 	Texture:    tex,
 	Geometry:   geos,                   // nil is fine
 	Identifier: patch.Geometry.Default, // "" is also fine

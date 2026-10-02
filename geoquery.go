@@ -1,4 +1,4 @@
-package skinapi
+package bedrockskin
 
 import (
 	"encoding/json"
@@ -14,7 +14,7 @@ import (
 // path. ParseGeometry gives the typed models the renderer uses; a tree is for
 // reading a file. See docs/geometry-format.md#picking-values-out-of-a-file.
 //
-//	tree, err := skinapi.ParseGeometryTree(raw)
+//	tree, err := bedrockskin.ParseGeometryTree(raw)
 //	pivot, ok := tree.Get("geometry.humanoid.custom/bones/rightArm/pivot")
 //	for _, v := range tree.Select("*/bones/*/cubes/*/size") { ... }
 //
@@ -46,13 +46,13 @@ type GeometryValue struct {
 
 // ErrNoGeometryModels is returned by ParseGeometryTree for valid JSON that
 // holds no geometry.
-var ErrNoGeometryModels = errors.New("skinapi: no geometry models in the file")
+var ErrNoGeometryModels = errors.New("bedrockskin: no geometry models in the file")
 
 // ParseGeometryTree reads a geometry file of either format into a tree.
 func ParseGeometryTree(raw []byte) (*GeometryTree, error) {
 	var top map[string]any
 	if err := json.Unmarshal(raw, &top); err != nil {
-		return nil, fmt.Errorf("skinapi: geometry: %w", err)
+		return nil, fmt.Errorf("bedrockskin: geometry: %w", err)
 	}
 	t := &GeometryTree{raw: append([]byte(nil), raw...)}
 	t.FormatVersion, _ = top["format_version"].(string)
@@ -61,7 +61,7 @@ func ParseGeometryTree(raw []byte) (*GeometryTree, error) {
 		for i, m := range list {
 			node, ok := m.(map[string]any)
 			if !ok {
-				return nil, fmt.Errorf("skinapi: geometry: model %d is not an object", i)
+				return nil, fmt.Errorf("bedrockskin: geometry: model %d is not an object", i)
 			}
 			desc, _ := node["description"].(map[string]any)
 			id, _ := desc["identifier"].(string)

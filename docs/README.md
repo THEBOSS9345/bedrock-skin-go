@@ -1,4 +1,4 @@
-# mcpe-skinapi documentation
+# bedrock-skin documentation
 
 Everything about how this library turns a Minecraft Bedrock skin into an image, why it is built the way it is, and how to build on top of it.
 

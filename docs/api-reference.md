@@ -1,9 +1,9 @@
 # API reference
 
-Every exported symbol in `github.com/THEBOSS9345/mcpe-skinapi`.
+Every exported symbol in `github.com/THEBOSS9345/bedrock-skin-go`.
 
 ```go
-import skinapi "github.com/THEBOSS9345/mcpe-skinapi"
+import bedrockskin "github.com/THEBOSS9345/bedrock-skin-go"
 ```
 
 ---
@@ -15,7 +15,7 @@ import skinapi "github.com/THEBOSS9345/mcpe-skinapi"
 The entry point. Rasterizes a skin into a square image.
 
 ```go
-img, err := skinapi.Render(skinapi.Options{Texture: tex})
+img, err := bedrockskin.Render(bedrockskin.Options{Texture: tex})
 ```
 
 With only a texture, that renders the full body of a standard humanoid, straight on, at 512×512.
@@ -94,9 +94,9 @@ Every error `Render` and the option parsers return describes bad caller input, n
 | `ErrUnknownAngle` | `ParseAngle` got a name it does not recognise |
 
 ```go
-img, err := skinapi.Render(opts)
+img, err := bedrockskin.Render(opts)
 switch {
-case errors.Is(err, skinapi.ErrNoTexture), errors.Is(err, skinapi.ErrNoMatchingParts):
+case errors.Is(err, bedrockskin.ErrNoTexture), errors.Is(err, bedrockskin.ErrNoMatchingParts):
 	http.Error(w, err.Error(), http.StatusBadRequest)
 case err != nil:
 	http.Error(w, "render failed", http.StatusInternalServerError)
@@ -122,10 +122,10 @@ For callers holding encoded file or wire bytes who want PNG bytes back, without 
 ### `func RenderBytes(opts BytesOptions) ([]byte, error)`
 
 ```go
-out, err := skinapi.RenderBytes(skinapi.BytesOptions{
+out, err := bedrockskin.RenderBytes(bedrockskin.BytesOptions{
 	Texture: textureBytes,   // encoded PNG or JPEG
 	Geometry: geometryBytes, // raw geometry.json; nil or "null" is fine
-	View:    skinapi.ViewAvatar,
+	View:    bedrockskin.ViewAvatar,
 	Size:    128,
 })
 ```
@@ -157,9 +157,9 @@ Every field behaves exactly as its `Options` counterpart.
 Both option types render themselves, if you prefer building and rendering in one expression:
 
 ```go
-img, err := skinapi.Options{Texture: tex}.Render()          // image.Image
-raw, err := skinapi.Options{Texture: tex}.RenderPNG()       // []byte
-raw, err := skinapi.BytesOptions{Texture: b}.RenderPNG()    // []byte
+img, err := bedrockskin.Options{Texture: tex}.Render()          // image.Image
+raw, err := bedrockskin.Options{Texture: tex}.RenderPNG()       // []byte
+raw, err := bedrockskin.BytesOptions{Texture: b}.RenderPNG()    // []byte
 ```
 
 `Options.RenderPNG` is the useful hybrid: decoded image in, PNG bytes out.
@@ -173,7 +173,7 @@ raw, err := base64.StdEncoding.DecodeString(data.SkinData)
 if err != nil {
 	return err
 }
-tex, err := skinapi.TextureFromRGBA(raw, data.SkinImageWidth, data.SkinImageHeight)
+tex, err := bedrockskin.TextureFromRGBA(raw, data.SkinImageWidth, data.SkinImageHeight)
 ```
 
 The slice backs the image directly rather than being copied, so do not modify it afterwards. A length disagreeing with the dimensions is an error rather than a garbled image.
@@ -189,14 +189,14 @@ Decodes PNG or JPEG. Applies **no size limit** — call `ImageDimensions` first 
 Reads an encoded image's pixel dimensions from its header alone, without decoding the pixels.
 
 ```go
-w, h, err := skinapi.ImageDimensions(data)
+w, h, err := bedrockskin.ImageDimensions(data)
 if err != nil {
 	return err
 }
 if w > 512 || h > 512 {
 	return errors.New("skin texture too large")
 }
-tex, err := skinapi.DecodeImage(data)
+tex, err := bedrockskin.DecodeImage(data)
 ```
 
 This is the check `DecodeImage` tells untrusted callers to make first, and it is cheap because decoding is where the damage happens: a few-KB PNG can declare enormous dimensions and force a multi-gigabyte allocation the moment it is decoded. `ImageDimensions` is to a texture what `Complexity` is to geometry — the measurement, with the ceiling left to you.
@@ -234,7 +234,7 @@ const (
 Resolve a name — as it arrives in a query string or config file — to a `View` or `Angle`. Matching ignores case and surrounding space.
 
 ```go
-view, err := skinapi.ParseView(r.URL.Query().Get("view"))
+view, err := bedrockskin.ParseView(r.URL.Query().Get("view"))
 if err != nil {
 	http.Error(w, err.Error(), http.StatusBadRequest)
 	return
@@ -248,7 +248,7 @@ Blank input returns `ViewBody` / the zero `Angle` (which `Options` reads as "the
 Splits a comma-separated bone list, trimming whitespace and dropping empties.
 
 ```go
-skinapi.ParseParts(" head , leftArm ,, rightArm ") // ["head" "leftArm" "rightArm"]
+bedrockskin.ParseParts(" head , leftArm ,, rightArm ") // ["head" "leftArm" "rightArm"]
 ```
 
 Returns nil for blank input, which `Options.Parts` reads as "everything".
@@ -264,7 +264,7 @@ Parses a `geometry.json` into normalized entries, accepting both Bedrock formats
 Returns **zero entries with no error** for input that is valid JSON but carries no geometry, including the literal `null` a Bedrock client sends for a built-in model. An error means genuinely malformed JSON.
 
 ```go
-geos, err := skinapi.ParseGeometry(raw)
+geos, err := bedrockskin.ParseGeometry(raw)
 if err != nil {
 	return err // malformed
 }
@@ -283,11 +283,11 @@ type ResourcePatch struct {
 ```
 
 ```go
-patch, err := skinapi.ParseResourcePatch(raw)
+patch, err := bedrockskin.ParseResourcePatch(raw)
 if err != nil {
 	return err
 }
-img, err := skinapi.Render(skinapi.Options{
+img, err := bedrockskin.Render(bedrockskin.Options{
 	Texture:    tex,
 	Geometry:   geos,
 	Identifier: patch.Default,
@@ -345,9 +345,9 @@ func (v GeometryValue) JSON() []byte
 Reports whether raw geometry carries no mesh at all — empty, whitespace, or the literal `null` (with or without a trailing newline). Use it to separate "this skin has no custom model" from "this upload is broken" before parsing.
 
 ```go
-if skinapi.IsEmpty(raw) {
+if bedrockskin.IsEmpty(raw) {
 	geos = nil // built-in model; Render will use the default
-} else if geos, err = skinapi.ParseGeometry(raw); err != nil {
+} else if geos, err = bedrockskin.ParseGeometry(raw); err != nil {
 	return err
 }
 ```
@@ -359,7 +359,7 @@ Total bones and cubes across **every** entry, not just the one that will be rend
 The library enforces no limit itself. See [design-decisions.md](design-decisions.md#why-there-are-no-built-in-limits).
 
 ```go
-if bones, cubes := skinapi.Complexity(geos); bones > 2000 || cubes > 5000 {
+if bones, cubes := bedrockskin.Complexity(geos); bones > 2000 || cubes > 5000 {
 	return errors.New("geometry too complex")
 }
 ```
@@ -451,7 +451,7 @@ Separate from rendering: given a texture (and, ideally, its geometry), answer *"
 Bundles a decoded texture with its raw `geometry.json` bytes (`nil` if the skin sends none) for analysis.
 
 ```go
-skin := skinapi.NewSkin(tex, geoBytes)
+skin := bedrockskin.NewSkin(tex, geoBytes)
 ```
 
 ### `func NewSkinWithOptions(texture image.Image, geometry []byte, opts SkinOptions) *Skin`
