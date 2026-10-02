@@ -149,28 +149,29 @@ Why bounding-box framing rather than a fixed distance: a fixed distance/FOV pair
 ## Stage 5 — Rasterizing
 
 ```go
-dc := fauxgl.NewContext(size, size)
-dc.Cull = fauxgl.CullNone
-dc.ClearColorBufferWith(fauxgl.Transparent)
-
 matrix := fauxgl.LookAt(eye, center, fauxgl.Vector{Y: 1}).
 	Perspective(fovDegrees, 1.0, 1, 500)
 
-dc.Shader = newAlphaTestTextureShader(matrix, fauxgl.NewImageTexture(texture))
-for _, t := range triangles {
-	dc.DrawTriangle(t)
+r := newRaster(size, size) // transparent colour, depth at +max
+for _, l := range layers {
+	tex := newFastImageTexture(l.texture)
+	for _, t := range l.triangles {
+		r.drawTriangle(t, matrix, tex)
+	}
 }
 ```
 
+The rasterizer is fauxgl's, specialised to this one shader - see [design-decisions.md](design-decisions.md#why-the-rasterizer-is-specialised).
+
 Four details, each of which was a bug at some point:
 
-**Clip space only — no `Viewport`.** The shader matrix must stop after `LookAt` and `Perspective`. fauxgl's `Context` applies the NDC→screen mapping itself, after the perspective divide, using its own internal screen matrix. Chaining `.Viewport(...)` here double-applies that transform *before* the divide and produces a completely blank render — zero non-transparent pixels — even though the mesh built correctly at sensible coordinates.
+**Clip space only — no `Viewport`.** The matrix must stop after `LookAt` and `Perspective`. The rasterizer applies the NDC→screen mapping itself, after the perspective divide, using its own internal screen matrix. Chaining `.Viewport(...)` here double-applies that transform *before* the divide and produces a completely blank render — zero non-transparent pixels — even though the mesh built correctly at sensible coordinates.
 
-**`CullNone`.** Winding order is not guaranteed consistent across faces, so back-face culling would drop real geometry.
+**No culling.** Winding order is not guaranteed consistent across faces, so back-face culling would drop real geometry.
 
 **Transparent clear.** Output is RGBA with a transparent background, so renders composite onto any page or canvas.
 
-**`DrawTriangle`, singular, in a loop.** The plural `DrawTriangles` spawns `runtime.NumCPU()` workers and is faster for a single render, but its workers race on the depth buffer — which would trip the race detector in every downstream service — and it is slower under concurrent load. See [design-decisions.md](design-decisions.md#why-rasterization-is-single-threaded).
+**One triangle at a time.** fauxgl's parallel `DrawTriangles` was faster for a single render, but its workers raced on the depth buffer — which would trip the race detector in every downstream service — and it was slower under concurrent load. See [design-decisions.md](design-decisions.md#why-rasterization-is-single-threaded).
 
 ### Alpha testing
 
@@ -196,16 +197,7 @@ Sampling is nearest-neighbour, not bilinear, for two reasons. Minecraft's skin a
 
 ### Capes
 
-The cape is drawn as a second pass with its own texture, into the same depth buffer, so it occludes and is occluded correctly:
-
-```go
-if capeTexture != nil && len(capeTriangles) > 0 {
-	dc.Shader = newAlphaTestTextureShader(matrix, fauxgl.NewImageTexture(capeTexture))
-	for _, t := range capeTriangles {
-		dc.DrawTriangle(t)
-	}
-}
-```
+The cape is the last layer: drawn with its own texture into the same depth buffer, so it occludes and is occluded correctly.
 
 The cape entry is its own self-contained mini-hierarchy (`body` → `waist` → `cape`), resolved purely from parent names within that entry, so it positions itself without reference to the body model.
 

@@ -30,6 +30,16 @@ func TestFastTextureMatchesFauxgl(t *testing.T) {
 			math.Abs(a.B-b.B) > 1e-6 || math.Abs(a.A-b.A) > 1e-6 {
 			t.Fatalf("mismatch at u=%f v=%f: fast=%+v old=%+v", u, v, a, b)
 		}
+		// The rasterizer reads texels through offset; it must pick the
+		// texel Sample does, including on the skipped-floor fast path.
+		for _, uv := range [][2]float64{{u, v}, {u - 1, v - 1}, {u / 2, v / 2}} {
+			k := fast.offset(uv[0], uv[1])
+			c := fast.Sample(uv[0], uv[1])
+			p := fast.pix[k : k+4]
+			if float64(p[0])/255 != c.R || float64(p[3])/255 != c.A {
+				t.Fatalf("offset picks another texel at %v", uv)
+			}
+		}
 	}
 }
 

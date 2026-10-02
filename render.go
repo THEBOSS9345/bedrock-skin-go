@@ -242,33 +242,27 @@ func cameraForYawPitch(triangles []*fauxgl.Triangle, fovDegrees, marginFactor, y
 // rasterize does the GPU-free drawing, given resolved triangles and camera
 // parameters. capeTriangles/capeTexture may be nil to skip the cape.
 func rasterize(layers []layer, eye, center fauxgl.Vector, fovDegrees float64, size int) image.Image {
-	dc := fauxgl.NewContext(size, size)
-	dc.Cull = fauxgl.CullNone // see shader.go / mesh.go: winding order is not guaranteed consistent
-	dc.ClearColorBufferWith(fauxgl.Transparent)
-
-	// Clip space only - do NOT chain .Viewport(...) here. fauxgl applies the
-	// NDC->screen mapping itself after the perspective divide; adding one
-	// before the divide renders a fully blank image.
+	// Clip space only - do NOT chain .Viewport(...) here. The rasterizer
+	// applies the NDC->screen mapping itself after the perspective divide;
+	// adding one before the divide renders a fully blank image.
 	// See docs/design-decisions.md#why-no-viewport-in-the-shader-matrix.
 	matrix := fauxgl.LookAt(eye, center, fauxgl.Vector{Y: 1}).
 		Perspective(fovDegrees, 1.0, 1, 500)
 
-	// Deliberately the singular DrawTriangle in a loop, NOT the plural
-	// DrawTriangles: the plural form spawns goroutines that race on fauxgl's
-	// depth buffer, which trips the race detector in any downstream test
-	// suite. It is also slower under concurrent load. Do not "optimize" this
-	// back. See docs/design-decisions.md#why-rasterization-is-single-threaded.
+	// One triangle at a time, in order: drawing order decides ties in the
+	// depth test, so it is part of the image. See
+	// docs/design-decisions.md#why-rasterization-is-single-threaded.
+	r := newRaster(size, size)
 	for _, l := range layers {
 		if len(l.triangles) == 0 {
 			continue
 		}
-		dc.Shader = newAlphaTestTextureShader(matrix, newFastImageTexture(l.texture))
+		tex := newFastImageTexture(l.texture)
 		for _, t := range l.triangles {
-			dc.DrawTriangle(t)
+			r.drawTriangle(t, matrix, tex)
 		}
 	}
-
-	return dc.Image()
+	return r.color
 }
 
 // buildCapeTriangles builds the cape mesh. A cape entry is its own

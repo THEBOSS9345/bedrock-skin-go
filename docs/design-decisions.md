@@ -106,11 +106,15 @@ Aesthetics: Minecraft is pixelated on purpose, and bilinear filtering makes a sk
 
 Winding order is not guaranteed consistent across generated faces, so back-face culling would drop real geometry. The cost of drawing back faces is negligible at a few hundred triangles.
 
+## Why the rasterizer is specialised
+
+The Go version drew through fauxgl's general `Context` until a profile of a 512px head render put 93% of the time inside fauxgl's per-pixel loop. A third of that interpolated vertex attributes the shader never reads - position, normal, colour, clip position - for every pixel; another sixth locked and unlocked a mutex per pixel for a parallel mode the renderer does not use; the rest went through two interface calls per pixel.
+
+`raster.go` is that loop specialised to the one shader: it interpolates the texture coordinate alone, reads the texel's bytes directly, and takes no locks. Every operation on the values it keeps is fauxgl's, in fauxgl's order - including a depth test written `!(bz <= depth)` rather than `bz > depth`, which differ for a NaN depth and did differ on 13 pixels of the avatar golden. The colour stays as the texel's bytes because every byte survives `byte/255*255` exactly, alpha below 0.5 is a byte below 128, and below 1 is below 255. The vertex stage and clipping still go through fauxgl. The goldens and every parity fixture are unchanged, and a head render went from 32 ms to 7 ms - level with the Rust port, which had made the same specialisation from the start.
+
 ## Why rasterization is single-threaded
 
-`rasterize` calls fauxgl's singular `DrawTriangle` in a loop. The plural `DrawTriangles` spawns `runtime.NumCPU()` workers and stripes the triangle list across them, which is faster for one isolated render — and it is deliberately not used.
-
-Two reasons, in order of importance.
+`rasterize` draws one triangle at a time. fauxgl's `DrawTriangles` spawned `runtime.NumCPU()` workers and striped the triangle list across them, which is faster for one isolated render - and it was deliberately never used, for the two reasons below, measured before the rasterizer was specialised.
 
 **It races.** fauxgl's parallel path reads the depth buffer without holding the lock (`context.go:232`, carrying its author's own `// safe w/out lock?` comment) while another worker writes it under the lock. In practice the race looks benign — the values are aligned float64s and the authoritative depth test is repeated inside the lock — but it is a data race by the Go memory model, and `go test -race` reports it every time.
 
