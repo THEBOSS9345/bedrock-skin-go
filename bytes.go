@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	"image/png"
 
 	_ "image/jpeg" // registered so DecodeImage accepts JPEG as well as PNG
@@ -115,6 +116,9 @@ func (o BytesOptions) RenderPNG() ([]byte, error) {
 
 // DecodeImage decodes PNG or JPEG bytes into an image.
 //
+// The result is always an *image.NRGBA: straight-alpha RGBA, whatever kind
+// of PNG it was.
+//
 // It applies no size limit. Decoding is where a malicious image does its
 // damage: a few-KB file can declare enormous dimensions and force a huge
 // allocation. Callers handling untrusted input should call ImageDimensions
@@ -127,7 +131,26 @@ func DecodeImage(data []byte) (image.Image, error) {
 	if err != nil {
 		return nil, fmt.Errorf("not a valid image: %w", err)
 	}
-	return img, nil
+	return toNRGBA(img), nil
+}
+
+// toNRGBA returns img as straight-alpha 8-bit RGBA, the form a skin texture
+// is everywhere in the library. PNGs decode to other types too - palette
+// PNGs, which is how most stored skins are saved, to *image.Paletted - and
+// converting each pixel's own colour keeps half-transparent pixels exact,
+// where going through premultiplied RGBA() would round them.
+func toNRGBA(img image.Image) image.Image {
+	if n, ok := img.(*image.NRGBA); ok {
+		return n
+	}
+	b := img.Bounds()
+	out := image.NewNRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
+	for y := 0; y < b.Dy(); y++ {
+		for x := 0; x < b.Dx(); x++ {
+			out.SetNRGBA(x, y, color.NRGBAModel.Convert(img.At(b.Min.X+x, b.Min.Y+y)).(color.NRGBA))
+		}
+	}
+	return out
 }
 
 // EncodePNG encodes an image as PNG bytes.
