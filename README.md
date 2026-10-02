@@ -10,7 +10,7 @@
   <img src="docs/images/dance.gif" width="160" alt="The skin dancing">
 </p>
 
-Texture in, `image.Image` out. No GPU, no headless browser, no external process — a small software rasterizer built on [fauxgl](https://github.com/fogleman/fauxgl). It reads skins the way a Bedrock (MCPE) client sends them, so it drops straight into a proxy, a server plugin, a Discord bot or a website.
+Texture in, `image.Image` out. No GPU, no headless browser, no external process — a small software rasterizer of its own, written for skins - the matrix maths and clipping come from [fauxgl](https://github.com/fogleman/fauxgl). It reads skins the way a Bedrock (MCPE) client sends them, so it drops straight into a proxy, a server plugin, a Discord bot or a website.
 
 ```bash
 go get github.com/THEBOSS9345/bedrock-skin-go
