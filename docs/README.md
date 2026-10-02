@@ -11,9 +11,11 @@ Start with whichever matches what you are doing:
 | Check a skin for invisible/invalid parts | [api-reference.md](api-reference.md#invisibility-detection) |
 | Understand what a Bedrock client actually sends | [skin-data.md](skin-data.md) |
 | Understand geometry.json | [geometry-format.md](geometry-format.md) |
+| Pick values out of a geometry file by path | [geometry-format.md](geometry-format.md#picking-values-out-of-a-file) |
 | Understand how a mesh becomes pixels | [rendering-pipeline.md](rendering-pipeline.md) |
 | Understand framing, bone scoping, cameras | [views-and-cameras.md](views-and-cameras.md) |
 | Animate a skin: built-in motions, Blockbench animation files | [animation.md](animation.md) |
+| Know why a Minecraft animation does nothing on a model | [animation.md](animation.md#which-minecraft-animations-work) |
 | Know *why* something is done a particular way | [design-decisions.md](design-decisions.md) |
 
 ## The short version

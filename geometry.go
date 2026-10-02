@@ -18,6 +18,38 @@ type Bone struct {
 	Inflate  float64   `json:"inflate,omitempty"`
 	Mirror   bool      `json:"mirror,omitempty"`
 	Cubes    []Cube    `json:"cubes,omitempty"`
+
+	// The rest of the schema, kept so a whole file can be read. The
+	// renderer draws cubes only: poly meshes and texture meshes are parsed
+	// but not drawn. See docs/geometry-format.md#everything-else-in-a-bone.
+	BindPoseRotation []float64          `json:"bind_pose_rotation,omitempty"`
+	Locators         map[string]Locator `json:"locators,omitempty"`
+	PolyMesh         json.RawMessage    `json:"poly_mesh,omitempty"`
+	TextureMeshes    json.RawMessage    `json:"texture_meshes,omitempty"`
+}
+
+// Locator is a named point on a bone - where an item is held, a lead ties,
+// particles start. A file writes one as just an offset, [x, y, z], or as an
+// object with an offset and a rotation; both read into this.
+type Locator struct {
+	Offset               []float64 `json:"offset"`
+	Rotation             []float64 `json:"rotation,omitempty"`
+	IgnoreInheritedScale bool      `json:"ignore_inherited_scale,omitempty"`
+}
+
+func (l *Locator) UnmarshalJSON(raw []byte) error {
+	var offset []float64
+	if err := json.Unmarshal(raw, &offset); err == nil {
+		*l = Locator{Offset: offset}
+		return nil
+	}
+	type plain Locator
+	var p plain
+	// A locator the renderer has no use for never fails a whole model: a
+	// malformed one reads as empty.
+	_ = json.Unmarshal(raw, &p)
+	*l = Locator(p)
+	return nil
 }
 
 type Cube struct {
@@ -33,6 +65,35 @@ type Cube struct {
 	Pivot    []float64 `json:"pivot,omitempty"`
 }
 
+// FaceUV is one face's texture area in a cube's per-face uv form.
+type FaceUV struct {
+	UV               []float64 `json:"uv"`
+	UVSize           []float64 `json:"uv_size,omitempty"`
+	UVRotation       float64   `json:"uv_rotation,omitempty"`
+	MaterialInstance string    `json:"material_instance,omitempty"`
+}
+
+// BoxUV returns the cube's texture origin when its uv is the box form,
+// [u, v], which lays all six faces out from that corner.
+func (c Cube) BoxUV() (u, v float64, ok bool) {
+	var arr []float64
+	if json.Unmarshal(c.UV, &arr) != nil || len(arr) < 2 {
+		return 0, 0, false
+	}
+	return arr[0], arr[1], true
+}
+
+// FaceUVs returns each face's texture area, by face name (north, east,
+// south, west, up, down), when the cube's uv is the per-face form; nil for
+// the box form. A face it leaves out is not drawn.
+func (c Cube) FaceUVs() map[string]FaceUV {
+	var faces map[string]FaceUV
+	if json.Unmarshal(c.UV, &faces) != nil {
+		return nil
+	}
+	return faces
+}
+
 // Geometry is one normalized model - a body, a cape - regardless of which of
 // Bedrock's two wire formats it came from. See ParseGeometry.
 type Geometry struct {
@@ -40,6 +101,12 @@ type Geometry struct {
 	TextureWidth  float64
 	TextureHeight float64
 	Bones         []Bone
+
+	// The visible bounds: the box, in blocks, the game uses to decide the
+	// model is on screen. Zero when the file leaves them out.
+	VisibleBoundsWidth  float64
+	VisibleBoundsHeight float64
+	VisibleBoundsOffset []float64
 }
 
 // BoneByName returns the bone with the given name, and whether it exists.
@@ -50,6 +117,28 @@ func (g *Geometry) BoneByName(name string) (Bone, bool) {
 		}
 	}
 	return Bone{}, false
+}
+
+// Children returns the bones whose parent is the named bone, in file order.
+func (g *Geometry) Children(name string) []Bone {
+	var out []Bone
+	for _, b := range g.Bones {
+		if b.Parent == name {
+			out = append(out, b)
+		}
+	}
+	return out
+}
+
+// Locator finds a locator by name on any bone, returning it and the bone it
+// is on.
+func (g *Geometry) Locator(name string) (Locator, Bone, bool) {
+	for _, b := range g.Bones {
+		if l, ok := b.Locators[name]; ok {
+			return l, b, true
+		}
+	}
+	return Locator{}, Bone{}, false
 }
 
 // IsEmpty reports whether raw carries no geometry at all: either nothing, or
@@ -93,9 +182,12 @@ func (g *Geometry) TotalCubes() int {
 type modernGeometryDoc struct {
 	MinecraftGeometry []struct {
 		Description struct {
-			Identifier    string  `json:"identifier"`
-			TextureWidth  float64 `json:"texture_width"`
-			TextureHeight float64 `json:"texture_height"`
+			Identifier          string    `json:"identifier"`
+			TextureWidth        float64   `json:"texture_width"`
+			TextureHeight       float64   `json:"texture_height"`
+			VisibleBoundsWidth  float64   `json:"visible_bounds_width"`
+			VisibleBoundsHeight float64   `json:"visible_bounds_height"`
+			VisibleBoundsOffset []float64 `json:"visible_bounds_offset"`
 		} `json:"description"`
 		Bones []Bone `json:"bones"`
 	} `json:"minecraft:geometry"`
@@ -105,9 +197,12 @@ type modernGeometryDoc struct {
 // identifier is a top-level key, and texture dimensions lose their
 // underscores. See docs/geometry-format.md#legacy-pre-112.
 type legacyGeometryEntryRaw struct {
-	TextureWidth  float64 `json:"texturewidth"`
-	TextureHeight float64 `json:"textureheight"`
-	Bones         []Bone  `json:"bones"`
+	TextureWidth        float64   `json:"texturewidth"`
+	TextureHeight       float64   `json:"textureheight"`
+	VisibleBoundsWidth  float64   `json:"visible_bounds_width"`
+	VisibleBoundsHeight float64   `json:"visible_bounds_height"`
+	VisibleBoundsOffset []float64 `json:"visible_bounds_offset"`
+	Bones               []Bone    `json:"bones"`
 }
 
 // ParseGeometry parses raw into normalized entries, detecting whichever of
@@ -125,11 +220,15 @@ func ParseGeometry(raw []byte) ([]Geometry, error) {
 	if err := json.Unmarshal(raw, &modern); err == nil && len(modern.MinecraftGeometry) > 0 {
 		out := make([]Geometry, len(modern.MinecraftGeometry))
 		for i, g := range modern.MinecraftGeometry {
+			d := g.Description
 			out[i] = Geometry{
-				Identifier:    g.Description.Identifier,
-				TextureWidth:  textureSize(g.Description.TextureWidth),
-				TextureHeight: textureSize(g.Description.TextureHeight),
-				Bones:         g.Bones,
+				Identifier:          d.Identifier,
+				TextureWidth:        textureSize(d.TextureWidth),
+				TextureHeight:       textureSize(d.TextureHeight),
+				Bones:               g.Bones,
+				VisibleBoundsWidth:  d.VisibleBoundsWidth,
+				VisibleBoundsHeight: d.VisibleBoundsHeight,
+				VisibleBoundsOffset: d.VisibleBoundsOffset,
 			}
 		}
 		return out, nil
@@ -149,10 +248,13 @@ func ParseGeometry(raw []byte) ([]Geometry, error) {
 			continue
 		}
 		out = append(out, Geometry{
-			Identifier:    key,
-			TextureWidth:  textureSize(entry.TextureWidth),
-			TextureHeight: textureSize(entry.TextureHeight),
-			Bones:         entry.Bones,
+			Identifier:          key,
+			TextureWidth:        textureSize(entry.TextureWidth),
+			TextureHeight:       textureSize(entry.TextureHeight),
+			Bones:               entry.Bones,
+			VisibleBoundsWidth:  entry.VisibleBoundsWidth,
+			VisibleBoundsHeight: entry.VisibleBoundsHeight,
+			VisibleBoundsOffset: entry.VisibleBoundsOffset,
 		})
 	}
 

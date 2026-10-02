@@ -35,6 +35,30 @@ type Animation struct {
 
 	timeUpdate *molang // anim_time_update: what drives the animation's clock
 	bones      map[string]*boneAnimation
+	boneNames  []string // as the file spells them, sorted
+}
+
+// Bones lists the bones the animation moves, as the file names them.
+func (a *Animation) Bones() []string {
+	return append([]string(nil), a.boneNames...)
+}
+
+// MissingBones lists the bones the animation moves that g does not have, so
+// those parts of it will do nothing on that model - typically an animation
+// made for another entity (a wing, a tail). Names match case-insensitively,
+// as in game. Empty means every part of it applies.
+func (a *Animation) MissingBones(g Geometry) []string {
+	have := make(map[string]bool, len(g.Bones))
+	for _, b := range g.Bones {
+		have[strings.ToLower(b.Name)] = true
+	}
+	var out []string
+	for _, n := range a.boneNames {
+		if !have[strings.ToLower(n)] {
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 type boneAnimation struct {
@@ -134,7 +158,9 @@ func parseAnimation(name string, raw json.RawMessage) (*Animation, error) {
 		}
 		// Bone names match the geometry's case-insensitively, as in game.
 		a.bones[strings.ToLower(bone)] = ba
+		a.boneNames = append(a.boneNames, bone)
 	}
+	sort.Strings(a.boneNames)
 	a.Length = last
 	if doc.Length != nil && *doc.Length > 0 {
 		a.Length = *doc.Length

@@ -34,6 +34,8 @@ render2d.go         flat fallback for persona skins
 animation.go        poses, the built-in motions, RenderFrames/RenderGIF
 animfile.go         Bedrock animation files (Blockbench exports)
 molang.go           the Molang subset animation files use
+examples.go         ExampleAnimations: examples/animations, embedded
+geoquery.go         ParseGeometryTree: whole-file geometry, picked by path
 shader.go           the unlit alpha-tested shader
 bytes.go            byte-oriented API and image helpers
 invisible.go        invisibility/tiny-geometry detection internals

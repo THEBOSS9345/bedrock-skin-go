@@ -303,3 +303,45 @@ func TestVanillaSneakMatchesMotion(t *testing.T) {
 		t.Error("Minecraft's sneak animation renders differently from MotionSneak")
 	}
 }
+
+func TestExampleAnimations(t *testing.T) {
+	anims := ExampleAnimations()
+	if len(anims) < 30 {
+		t.Fatalf("got %d example animations, want 30 or more", len(anims))
+	}
+	geos, err := ParseGeometry(defaultGeometryJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := SelectGeometry(geos, "geometry.humanoid.custom")
+	tex := image.NewNRGBA(image.Rect(0, 0, 64, 64))
+	for name, a := range anims {
+		// Made for the player: every bone they move is on the player model.
+		if missing := a.MissingBones(body); len(missing) > 0 {
+			t.Errorf("%s moves bones the player model lacks: %v", name, missing)
+		}
+		if _, err := Render(Options{Texture: tex, Size: 32, Pose: a.Pose(a.Duration() / 3)}); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	// The map is the caller's to change.
+	delete(anims, "animation.player.dance")
+	if _, ok := ExampleAnimations()["animation.player.dance"]; !ok {
+		t.Error("deleting from one result changed the next")
+	}
+}
+
+func TestMissingBones(t *testing.T) {
+	anims, err := ParseAnimations([]byte(`{"animations":{"a":{"bones":{"RightArm":{"rotation":[0,0,10]},"wing_left":{"rotation":[0,0,10]}}}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := anims["a"]
+	if got := a.Bones(); len(got) != 2 || got[0] != "RightArm" || got[1] != "wing_left" {
+		t.Errorf("Bones = %v", got)
+	}
+	g := Geometry{Bones: []Bone{{Name: "rightArm"}}}
+	if got := a.MissingBones(g); len(got) != 1 || got[0] != "wing_left" {
+		t.Errorf("MissingBones = %v", got)
+	}
+}

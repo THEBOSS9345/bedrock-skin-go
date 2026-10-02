@@ -1,0 +1,611 @@
+{
+	"format_version": "1.8.0",
+	"animations": {
+		"animation.player.dance": {
+			"loop": true,
+			"animation_length": 1,
+			"bones": {
+				"rightArm": {
+					"rotation": {
+						"0.0": [
+							0,
+							0,
+							0
+						],
+						"0.5": {
+							"post": [
+								0,
+								0,
+								120
+							],
+							"lerp_mode": "catmullrom"
+						},
+						"1.0": [
+							0,
+							0,
+							0
+						]
+					}
+				},
+				"leftArm": {
+					"rotation": [
+						0,
+						0,
+						"-60 - math.sin(q.anim_time * 360) * 40"
+					]
+				},
+				"head": {
+					"rotation": [
+						0,
+						"math.sin(q.anim_time * 360) * 30",
+						0
+					]
+				},
+				"body": {
+					"position": [
+						0,
+						"math.abs(math.sin(q.anim_time * 360))",
+						0
+					]
+				}
+			}
+		},
+		"animation.player.wave_both": {
+			"loop": true,
+			"animation_length": 1,
+			"bones": {
+				"rightArm": {
+					"rotation": [
+						-10,
+						0,
+						"150 + math.sin(q.anim_time * 360) * 20"
+					]
+				},
+				"leftArm": {
+					"rotation": [
+						-10,
+						0,
+						"-150 + math.sin(q.anim_time * 360) * 20"
+					]
+				},
+				"head": {
+					"rotation": [
+						-15,
+						0,
+						0
+					]
+				}
+			}
+		},
+		"animation.player.clap": {
+			"loop": true,
+			"animation_length": 0.5,
+			"bones": {
+				"rightArm": {
+					"rotation": [
+						-85,
+						"math.cos(q.anim_time * 720) * 20 - 5",
+						0
+					]
+				},
+				"leftArm": {
+					"rotation": [
+						-85,
+						"5 - math.cos(q.anim_time * 720) * 20",
+						0
+					]
+				}
+			}
+		},
+		"animation.player.headbang": {
+			"loop": true,
+			"animation_length": 0.5,
+			"bones": {
+				"head": {
+					"rotation": [
+						"10 + math.sin(q.anim_time * 720) * 25",
+						0,
+						0
+					]
+				},
+				"rightArm": {
+					"rotation": [
+						-20,
+						0,
+						"15 + math.sin(q.anim_time * 720) * 10"
+					]
+				},
+				"leftArm": {
+					"rotation": [
+						-20,
+						0,
+						"-15 - math.sin(q.anim_time * 720) * 10"
+					]
+				}
+			}
+		},
+		"animation.player.robot": {
+			"loop": true,
+			"animation_length": 2,
+			"bones": {
+				"head": {
+					"rotation": {
+						"0.0": {
+							"post": [
+								0,
+								0,
+								0
+							],
+							"lerp_mode": "step"
+						},
+						"0.5": {
+							"post": [
+								0,
+								45,
+								0
+							],
+							"lerp_mode": "step"
+						},
+						"1.0": {
+							"post": [
+								0,
+								0,
+								0
+							],
+							"lerp_mode": "step"
+						},
+						"1.5": {
+							"post": [
+								0,
+								-45,
+								0
+							],
+							"lerp_mode": "step"
+						}
+					}
+				},
+				"rightArm": {
+					"rotation": {
+						"0.0": {
+							"post": [
+								-90,
+								0,
+								0
+							],
+							"lerp_mode": "step"
+						},
+						"1.0": {
+							"post": [
+								0,
+								0,
+								0
+							],
+							"lerp_mode": "step"
+						}
+					}
+				},
+				"leftArm": {
+					"rotation": {
+						"0.0": {
+							"post": [
+								0,
+								0,
+								0
+							],
+							"lerp_mode": "step"
+						},
+						"1.0": {
+							"post": [
+								-90,
+								0,
+								0
+							],
+							"lerp_mode": "step"
+						}
+					}
+				}
+			}
+		},
+		"animation.player.bow": {
+			"loop": true,
+			"animation_length": 2.5,
+			"bones": {
+				"waist": {
+					"rotation": {
+						"0.0": [
+							0,
+							0,
+							0
+						],
+						"0.6": {
+							"post": [
+								45,
+								0,
+								0
+							],
+							"lerp_mode": "catmullrom"
+						},
+						"1.6": {
+							"post": [
+								45,
+								0,
+								0
+							],
+							"lerp_mode": "catmullrom"
+						},
+						"2.2": [
+							0,
+							0,
+							0
+						]
+					}
+				},
+				"rightArm": {
+					"rotation": {
+						"0.0": [
+							0,
+							0,
+							0
+						],
+						"0.6": [
+							-20,
+							0,
+							0
+						],
+						"1.6": [
+							-20,
+							0,
+							0
+						],
+						"2.2": [
+							0,
+							0,
+							0
+						]
+					}
+				},
+				"leftArm": {
+					"rotation": {
+						"0.0": [
+							0,
+							0,
+							0
+						],
+						"0.6": [
+							-20,
+							0,
+							0
+						],
+						"1.6": [
+							-20,
+							0,
+							0
+						],
+						"2.2": [
+							0,
+							0,
+							0
+						]
+					}
+				}
+			}
+		},
+		"animation.player.cheer": {
+			"loop": true,
+			"animation_length": 0.6,
+			"bones": {
+				"rightArm": {
+					"rotation": [
+						0,
+						0,
+						"155 + math.sin(q.anim_time * 600) * 15"
+					]
+				},
+				"leftArm": {
+					"rotation": [
+						0,
+						0,
+						"-155 - math.sin(q.anim_time * 600) * 15"
+					]
+				},
+				"head": {
+					"rotation": [
+						-15,
+						0,
+						0
+					]
+				},
+				"root": {
+					"position": [
+						0,
+						"math.abs(math.sin(q.anim_time * 300)) * 3",
+						0
+					]
+				}
+			}
+		},
+		"animation.player.facepalm": {
+			"loop": "hold_on_last_frame",
+			"animation_length": 0.6,
+			"bones": {
+				"rightArm": {
+					"rotation": {
+						"0.0": [
+							0,
+							0,
+							0
+						],
+						"0.6": {
+							"post": [
+								-125,
+								-35,
+								0
+							],
+							"lerp_mode": "catmullrom"
+						}
+					}
+				},
+				"head": {
+					"rotation": {
+						"0.0": [
+							0,
+							0,
+							0
+						],
+						"0.6": [
+							25,
+							-15,
+							0
+						]
+					}
+				}
+			}
+		},
+		"animation.player.shrug": {
+			"loop": true,
+			"animation_length": 2,
+			"bones": {
+				"rightArm": {
+					"rotation": {
+						"0.0": [
+							0,
+							0,
+							0
+						],
+						"0.4": [
+							-35,
+							25,
+							40
+						],
+						"1.2": [
+							-35,
+							25,
+							40
+						],
+						"1.6": [
+							0,
+							0,
+							0
+						]
+					}
+				},
+				"leftArm": {
+					"rotation": {
+						"0.0": [
+							0,
+							0,
+							0
+						],
+						"0.4": [
+							-35,
+							-25,
+							-40
+						],
+						"1.2": [
+							-35,
+							-25,
+							-40
+						],
+						"1.6": [
+							0,
+							0,
+							0
+						]
+					}
+				},
+				"head": {
+					"rotation": {
+						"0.0": [
+							0,
+							0,
+							0
+						],
+						"0.4": [
+							0,
+							0,
+							15
+						],
+						"1.2": [
+							0,
+							0,
+							15
+						],
+						"1.6": [
+							0,
+							0,
+							0
+						]
+					}
+				}
+			}
+		},
+		"animation.player.point": {
+			"loop": "hold_on_last_frame",
+			"animation_length": 0.4,
+			"bones": {
+				"rightArm": {
+					"rotation": {
+						"0.0": [
+							0,
+							0,
+							0
+						],
+						"0.4": {
+							"post": [
+								-90,
+								15,
+								0
+							],
+							"lerp_mode": "catmullrom"
+						}
+					}
+				},
+				"head": {
+					"rotation": {
+						"0.0": [
+							0,
+							0,
+							0
+						],
+						"0.4": [
+							0,
+							15,
+							0
+						]
+					}
+				}
+			}
+		},
+		"animation.player.salute": {
+			"loop": "hold_on_last_frame",
+			"animation_length": 0.5,
+			"bones": {
+				"rightArm": {
+					"rotation": {
+						"0.0": [
+							0,
+							0,
+							0
+						],
+						"0.5": {
+							"post": [
+								-140,
+								-40,
+								0
+							],
+							"lerp_mode": "catmullrom"
+						}
+					}
+				}
+			}
+		},
+		"animation.player.dab": {
+			"loop": "hold_on_last_frame",
+			"animation_length": 0.4,
+			"bones": {
+				"rightArm": {
+					"rotation": {
+						"0.0": [
+							0,
+							0,
+							0
+						],
+						"0.4": [
+							-20,
+							0,
+							125
+						]
+					}
+				},
+				"leftArm": {
+					"rotation": {
+						"0.0": [
+							0,
+							0,
+							0
+						],
+						"0.4": [
+							-95,
+							-60,
+							0
+						]
+					}
+				},
+				"head": {
+					"rotation": {
+						"0.0": [
+							0,
+							0,
+							0
+						],
+						"0.4": [
+							35,
+							35,
+							0
+						]
+					}
+				}
+			}
+		},
+		"animation.player.yes": {
+			"loop": true,
+			"animation_length": 0.8,
+			"bones": {
+				"head": {
+					"rotation": [
+						"math.sin(q.anim_time * 900) * 18 + 5",
+						0,
+						0
+					]
+				}
+			}
+		},
+		"animation.player.no": {
+			"loop": true,
+			"animation_length": 0.8,
+			"bones": {
+				"head": {
+					"rotation": [
+						0,
+						"math.sin(q.anim_time * 900) * 35",
+						0
+					]
+				}
+			}
+		},
+		"animation.player.t_pose": {
+			"loop": "hold_on_last_frame",
+			"animation_length": 0.3,
+			"bones": {
+				"rightArm": {
+					"rotation": {
+						"0.0": [
+							0,
+							0,
+							0
+						],
+						"0.3": [
+							0,
+							0,
+							90
+						]
+					}
+				},
+				"leftArm": {
+					"rotation": {
+						"0.0": [
+							0,
+							0,
+							0
+						],
+						"0.3": [
+							0,
+							0,
+							-90
+						]
+					}
+				}
+			}
+		}
+	}
+}
