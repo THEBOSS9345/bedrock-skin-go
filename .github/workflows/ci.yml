@@ -50,7 +50,8 @@ jobs:
           targets="FuzzParseGeometry FuzzParseGeometryThenRender FuzzValidateSkinInvisibility FuzzParseResourcePatch FuzzImageDimensions"
           for target in $targets; do
             echo "== $target"
-            go test -run=NONE -fuzz="^$target$" -fuzztime=15s ./...
+            # One package: go test refuses -fuzz across several.
+            go test -run=NONE -fuzz="^$target$" -fuzztime=15s .
           done
 
       - name: Benchmark
