@@ -2,6 +2,7 @@ package bedrockskin
 
 import (
 	"image"
+	"image/color"
 	"math"
 
 	"github.com/fogleman/fauxgl"
@@ -37,8 +38,11 @@ func newFastImageTexture(im image.Image) fauxgl.Texture {
 	pix := make([]uint8, 0, w*h*4)
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
-			r, g, bl, a := im.At(b.Min.X+x, b.Min.Y+y).RGBA()
-			pix = append(pix, uint8(r>>8), uint8(g>>8), uint8(bl>>8), uint8(a>>8))
+			// Straight alpha, as the sampler reads it. RGBA() would give
+			// premultiplied colour, darkening every half-transparent pixel
+			// of a palette PNG - the form most stored skins take.
+			c := color.NRGBAModel.Convert(im.At(b.Min.X+x, b.Min.Y+y)).(color.NRGBA)
+			pix = append(pix, c.R, c.G, c.B, c.A)
 		}
 	}
 	return &fastImageTexture{width: w, height: h, pix: pix}
