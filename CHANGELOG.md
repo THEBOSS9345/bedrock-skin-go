@@ -3,6 +3,11 @@
 Versions match bedrock-skin-rs: the same version renders the same images
 with the same features in both.
 
+## Unreleased
+
+- `PolyMesh.Polygons()` and `PolyVertex`: a poly mesh's polygons with each
+  corner's position, normal and UV looked up.
+
 ## v0.2.0
 
 - Animations from bytes: `RenderGIFBytes` and `RenderFramesPNG`, with

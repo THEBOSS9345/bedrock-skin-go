@@ -70,11 +70,11 @@ func TestPolygonsSkipsMalformed(t *testing.T) {
 	if !ok {
 		t.Fatal("mesh did not read")
 	}
-	if got := len(m.polygons()); got != 1 {
+	if got := len(m.Polygons()); got != 1 {
 		t.Fatalf("got %d polygons, want 1", got)
 	}
 	m.Polys = []byte(`"quad_list"`)
-	if got := len(m.polygons()); got != 1 {
+	if got := len(m.Polygons()); got != 1 {
 		t.Fatalf("quad_list: got %d polygons, want 1", got)
 	}
 	if _, ok := (Bone{PolyMesh: []byte(`[1]`)}).Mesh(); ok {
@@ -93,5 +93,33 @@ func TestDetectorMeasuresPersonaMesh(t *testing.T) {
 	r = ValidateSkinInvisibility(makeTexture(0), raw)
 	if !r.IsInvisible {
 		t.Fatal("a transparent texture on a persona mesh should be invisible")
+	}
+}
+
+// Polygons hands back each corner looked up: position, normal and UV, with a
+// missing normal left zero rather than dropping the polygon.
+func TestPolygonsResolveCorners(t *testing.T) {
+	m, ok := Bone{PolyMesh: []byte(`{"normalized_uvs":true,
+		"positions":[[0,0,0],[1,0,0],[1,1,0],[0,1,0]],
+		"normals":[[0,0,-1]],
+		"uvs":[[0,0],[1,0],[1,1],[0,1]],
+		"polys":[[[0,0,0],[1,0,1],[2,0,2]],[[0,0,0],[2,5,2],[3,0,3]]]}`)}.Mesh()
+	if !ok || !m.NormalizedUVs {
+		t.Fatalf("mesh: %+v %v", m, ok)
+	}
+	got := m.Polygons()
+	if len(got) != 2 || len(got[0]) != 3 {
+		t.Fatalf("got %d polygons", len(got))
+	}
+	want := PolyVertex{Position: [3]float64{1, 1, 0}, Normal: [3]float64{0, 0, -1}, UV: [2]float64{1, 1}}
+	if got[0][2] != want {
+		t.Fatalf("corner = %+v, want %+v", got[0][2], want)
+	}
+	if got[1][1].Normal != ([3]float64{}) || got[1][1].Position != ([3]float64{1, 1, 0}) {
+		t.Fatalf("a missing normal should leave it zero: %+v", got[1][1])
+	}
+	m.Polys = []byte(`"quad_list"`)
+	if q := m.Polygons(); len(q) != 1 || q[0][3].UV != ([2]float64{0, 1}) {
+		t.Fatalf("quad_list: %+v", q)
 	}
 }

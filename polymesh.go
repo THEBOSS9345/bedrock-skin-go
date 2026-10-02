@@ -19,7 +19,7 @@ type PolyMesh struct {
 	UVs           [][]float64 `json:"uvs"`
 	// Polys is a list of polygons, each a list of [position, normal, uv]
 	// index triples, or the string "tri_list" / "quad_list" for vertices
-	// taken in order.
+	// taken in order. Polygons resolves them.
 	Polys json.RawMessage `json:"polys"`
 }
 
@@ -36,15 +36,21 @@ func (b Bone) Mesh() (PolyMesh, bool) {
 	return m, true
 }
 
-// polyVertex is one corner of a polygon: its position and texture coordinate.
-type polyVertex struct {
-	pos [3]float64
-	uv  [2]float64
+// PolyVertex is one corner of a polygon, its indices looked up: a position in
+// model space, a normal, and a texture coordinate - 0..1 with V counting up
+// when the mesh's NormalizedUVs is set, else texture pixels.
+type PolyVertex struct {
+	Position [3]float64
+	Normal   [3]float64 // zero when the corner names no usable normal
+	UV       [2]float64
 }
 
-// polygons resolves every polygon to its corners. A polygon that points
-// outside the mesh's lists, or has fewer than three corners, is skipped.
-func (m PolyMesh) polygons() [][]polyVertex {
+// Polygons resolves every polygon to its corners, "tri_list" and
+// "quad_list" included. A polygon with fewer than three corners, or one whose
+// position or UV index points outside the mesh's lists, is skipped - the
+// renderer and the detector skip it too. Normals are not drawn, so a missing
+// one leaves the corner's normal zero rather than dropping the polygon.
+func (m PolyMesh) Polygons() [][]PolyVertex {
 	var idx [][][]float64
 	var mode string
 	if json.Unmarshal(m.Polys, &mode) == nil {
@@ -69,22 +75,23 @@ func (m PolyMesh) polygons() [][]polyVertex {
 		return nil
 	}
 
-	var out [][]polyVertex
+	var out [][]PolyVertex
 	for _, poly := range idx {
 		if len(poly) < 3 {
 			continue
 		}
-		verts := make([]polyVertex, 0, len(poly))
+		verts := make([]PolyVertex, 0, len(poly))
 		for _, c := range poly {
 			p, okP := index(c, 0, m.Positions, 3)
 			t, okT := index(c, 2, m.UVs, 2)
 			if !okP || !okT {
 				break
 			}
-			verts = append(verts, polyVertex{
-				pos: [3]float64{p[0], p[1], p[2]},
-				uv:  [2]float64{t[0], t[1]},
-			})
+			v := PolyVertex{Position: [3]float64{p[0], p[1], p[2]}, UV: [2]float64{t[0], t[1]}}
+			if n, ok := index(c, 1, m.Normals, 3); ok {
+				v.Normal = [3]float64{n[0], n[1], n[2]}
+			}
+			verts = append(verts, v)
 		}
 		if len(verts) == len(poly) {
 			out = append(out, verts)
@@ -115,7 +122,7 @@ func (g *Geometry) HasMesh() bool {
 		if len(b.Cubes) > 0 {
 			return true
 		}
-		if m, ok := b.Mesh(); ok && len(m.polygons()) > 0 {
+		if m, ok := b.Mesh(); ok && len(m.Polygons()) > 0 {
 			return true
 		}
 	}
@@ -128,14 +135,14 @@ func (g *Geometry) HasMesh() bool {
 // needs no U flip of its own. See docs/rendering-pipeline.md#poly-meshes.
 func addPolyMesh(triangles *[]*fauxgl.Triangle, m PolyMesh, b Bone, worldMatrix fauxgl.Matrix, texW, texH float64) {
 	pivot := fauxgl.Vector{X: at(b.Pivot, 0), Y: at(b.Pivot, 1), Z: at(b.Pivot, 2)}
-	for _, poly := range m.polygons() {
+	for _, poly := range m.Polygons() {
 		verts := make([]fauxgl.Vertex, len(poly))
 		for i, c := range poly {
-			p := worldMatrix.MulPosition(fauxgl.Vector{X: c.pos[0], Y: c.pos[1], Z: c.pos[2]}.Sub(pivot))
+			p := worldMatrix.MulPosition(fauxgl.Vector{X: c.Position[0], Y: c.Position[1], Z: c.Position[2]}.Sub(pivot))
 			p.X = -p.X
 			// Normalized UVs count V up from the bottom, as fauxgl samples;
 			// pixel UVs count down from the top, as a cube's do.
-			u, v := c.uv[0], c.uv[1]
+			u, v := c.UV[0], c.UV[1]
 			if !m.NormalizedUVs {
 				u, v = u/texW, 1-v/texH
 			}
