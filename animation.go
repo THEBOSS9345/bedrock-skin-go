@@ -64,12 +64,28 @@ type BonePose struct {
 // animation files are matched in game.
 type Pose map[string]BonePose
 
-// of returns the pose for a bone.
+// of returns the pose for a bone: the exact name, else the bone's name
+// lower-cased, else any name equal to it ignoring ASCII case - the built-in
+// motions say "leftArm" where persona models name the bone "leftarm". When
+// several names match that way the smallest wins, so the result never
+// depends on map order. See docs/geometry-format.md#bone-names-ignore-case.
 func (p Pose) of(bone string) BonePose {
 	if bp, ok := p[bone]; ok {
 		return bp
 	}
-	return p[strings.ToLower(bone)]
+	if bp, ok := p[strings.ToLower(bone)]; ok {
+		return bp
+	}
+	best, found := "", false
+	for name := range p {
+		if sameBone(name, bone) && (!found || name < best) {
+			best, found = name, true
+		}
+	}
+	if found {
+		return p[best]
+	}
+	return BonePose{}
 }
 
 // Duration is how long one loop of the motion lasts, in seconds.
