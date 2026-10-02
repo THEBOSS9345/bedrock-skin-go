@@ -3,7 +3,7 @@
 Versions match bedrock-skin-rs: the same version renders the same images
 with the same features in both.
 
-## Unreleased
+## v0.2.2
 
 - Fixed: poses now find bones case-insensitively both ways. The built-in
   motions and most example animations say `leftArm`, persona models name the
