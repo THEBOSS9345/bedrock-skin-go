@@ -176,7 +176,17 @@ See [docs/geometry-format.md](docs/geometry-format.md#picking-values-out-of-a-fi
 
 ## Persona skins
 
-Persona (avatar-builder) skins have real bones but no cubes at all, because Bedrock never sends mesh data for them. There is genuinely nothing to rasterize, so `Render` detects this and falls back to a flat crop of the texture rather than returning an error — matching what the client shows. `Render2D` exposes that path directly.
+Persona (character creator) skins are built from poly meshes instead of cubes, and render in 3D like any other model. Their parts are spread over several geometry entries, and the head is textured by the skin's face animation rather than the skin image - pass the animation images to draw it:
+
+```go
+img, err := bedrockskin.Render(bedrockskin.Options{
+	Texture:  tex,
+	Geometry: geos,
+	Animated: []bedrockskin.AnimatedTexture{{Type: bedrockskin.AnimatedFace, Texture: face}},
+})
+```
+
+Without them the body renders and the head view returns `ErrEmptyView`. See [docs/geometry-format.md](docs/geometry-format.md#persona-skins).
 
 ## Detecting invisible or partly-invisible skins
 
@@ -201,7 +211,7 @@ Key behaviour:
 
 - **Strict when geometry is provided** - the detector cross-references geometry cube UVs against the real texture alpha, so a transparent region can't pass just because geometry maps there, and bones too small to see are caught.
 - **Lenient without geometry** - the standard vanilla humanoid UV layout is assumed.
-- **Persona skins are never flagged** - they're Mojang-curated. This means geometry that *parsed* into bones with no cubes; unreadable geometry is checked against the texture instead, so it can't be used to switch the detector off.
+- **Persona skins are measured too** - their poly meshes are checked where their UVs point, and parts drawn only from an animation image the detector never sees (the head) are trusted. Unreadable geometry is checked against the texture instead, so it can't be used to switch the detector off.
 - **A cape never masks an invisible body.**
 - **Thresholds are yours to set** - `NewSkinWithOptions` takes `SkinOptions`; the zero value is what `NewSkin` uses.
 

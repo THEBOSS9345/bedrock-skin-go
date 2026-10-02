@@ -103,10 +103,10 @@ The schema has more than the renderer uses. These are read into `Bone` too, so a
 | --- | --- | --- |
 | `locators` | `Locators map[string]Locator` | Named points: where an item is held, a lead ties, particles start. Written as `[x, y, z]` or `{"offset": [...], "rotation": [...]}`; both read into `Locator`. A malformed one reads as empty instead of failing the model. |
 | `bind_pose_rotation` | `BindPoseRotation` | The rest rotation an animation is relative to. |
-| `poly_mesh` | `PolyMesh` (raw JSON) | Free-form polygons instead of cubes. **Not drawn.** |
+| `poly_mesh` | `PolyMesh` (raw JSON, read with `Mesh()`) | Free-form polygons; how persona skins are built. Drawn - see [Poly meshes](#poly-meshes). |
 | `texture_meshes` | `TextureMeshes` (raw JSON) | A texture drawn as a flat mesh. **Not drawn.** |
 
-The renderer draws cubes only. Anything else in the file — fields no type covers — is still reachable through a [geometry tree](#picking-values-out-of-a-file).
+The renderer draws cubes and poly meshes. Anything else in the file — fields no type covers — is still reachable through a [geometry tree](#picking-values-out-of-a-file).
 
 `Geometry.Children(name)` lists a bone's direct children; `Geometry.Locator(name)` finds a locator on any bone and says which. A model's `visible_bounds_width`, `visible_bounds_height` and `visible_bounds_offset` read into `Geometry.VisibleBounds*`.
 
@@ -206,6 +206,37 @@ One trap in the code: fauxgl's `Rotate` turns the opposite way to the standard r
 This was long the one unverified corner: the first captures all had `rotation: [0, 0, 0]`. It is now checked against Minecraft's own animations as above, and against real captured geometry with rotated bones and cubes (a CubeCraft galaxy costume with tilted rings, planets and stars; Hive and Galaxite cosmetics), which renders identically to an independent three.js implementation of the same convention. `TestCubeRotation` pins the cube case with a procedural model.
 
 Everything else in this document was verified against captures.
+
+## Poly meshes
+
+```json
+"poly_mesh": {
+  "normalized_uvs": true,
+  "positions": [[-4, 24, -2], [4, 24, -2], ...],
+  "normals":   [[0, 1, 0], ...],
+  "uvs":       [[0.67, 0.30], ...],
+  "polys":     [[[0, 0, 0], [1, 0, 1], [2, 0, 2], [3, 0, 3]], ...]
+}
+```
+
+Each polygon is a list of corners, each corner `[position, normal, uv]` indices into the lists above; three corners make a triangle, four a quad. `polys` may instead be `"tri_list"` or `"quad_list"`, meaning the vertices taken in order, three or four at a time. Positions are in model space like a cube's origin. With `normalized_uvs` the UVs are 0..1 across the texture with V counting **up**; without, they are texture pixels against the declared texture size, V counting down. A polygon pointing outside the lists is skipped. Normals are not used - skins are drawn unlit.
+
+### Persona skins
+
+A persona (character creator) skin has no cubes at all. Every part is a box-shaped poly mesh, laid out in the texture in box-UV regions, and the parts are spread over several entries of one file:
+
+| Entry | Textured by | Holds |
+| --- | --- | --- |
+| `geometry.persona_<id>` | the skin image | most of the body, hair, clothes |
+| `geometry.animated_face_persona-<id>` | the face animation (type 1), 32x64 | the head and hat |
+| `geometry.animated_128x128_persona-<id>` | the 128x128 body animation (type 3) | animated body parts, on some skins the whole body |
+| `geometry.animated_32x32_persona-<id>` | the 32x32 body animation (type 2) | small animated parts |
+
+An animation image holds its frames stacked top to bottom; the UVs cover the first. Pass each image as an `AnimatedTexture` and its entry is drawn with it.
+
+### Bone names ignore case
+
+Bedrock matches bone names without regard to case, and persona models rely on it: their limbs are `leftarm`, `rightleg`, where vanilla says `leftArm`, `rightLeg`. Views, `Parts`, poses and the detector all compare names ignoring ASCII case.
 
 ## Picking values out of a file
 

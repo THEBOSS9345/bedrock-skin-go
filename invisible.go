@@ -3,6 +3,7 @@ package bedrockskin
 import (
 	"encoding/json"
 	"image"
+	"math"
 	"sort"
 )
 
@@ -140,6 +141,38 @@ var accessoryBones = map[string]bool{
 	"cape": true,
 }
 
+// standardName is the standard part a bone name spells, ignoring case as
+// Bedrock does (persona models say "leftarm"), or "" for any other bone.
+func standardName(name string) string {
+	for _, std := range standardPartNames {
+		if sameBone(name, std) {
+			return std
+		}
+	}
+	return ""
+}
+
+// overlayNames is overlayBones' keys in a fixed order.
+var overlayNames = []string{"hat", "jacket", "leftSleeve", "rightSleeve", "leftPants", "rightPants"}
+
+// partOf is the standard part a bone's visibility counts toward: the part
+// itself, or the part an overlay covers. Any other bone counts for itself.
+func partOf(name string) string {
+	if std := standardName(name); std != "" {
+		return std
+	}
+	for _, overlay := range overlayNames {
+		if sameBone(name, overlay) {
+			return overlayBones[overlay]
+		}
+	}
+	return name
+}
+
+func isAccessory(name string) bool {
+	return sameBone(name, "cape")
+}
+
 // legacy32BodyParts is the pre-1.8 64x32 layout. Its left arm and left leg
 // UV regions point off the bottom half of a 32-tall atlas, so they resolve to
 // no pixels and count as invisible. The other four parts map to their real
@@ -170,7 +203,8 @@ var legacy32BodyParts = map[string]struct{ ux, uy, w, h, d float64 }{
 // A skin is invisible if every body part has fewer than minVisibleFraction
 // non-transparent pixels at its rendered UV regions.
 func ValidateSkinVisibility(texture image.Image, geomData []byte, minVisibleFraction float64) SkinVisibilityResult {
-	scan := scanParts(texture, getGeometry(geomData))
+	geo, companions, _ := detectionGeometry(geomData)
+	scan := scanParts(texture, geo, companions)
 	if !scan.usable {
 		return unusableResult()
 	}
@@ -208,11 +242,12 @@ func personaResult() SkinVisibilityResult {
 // when the geometry supplies them and from the standard vanilla layout
 // otherwise. It draws no conclusions; classifyVisibility does that.
 //
-// It takes an already-parsed bone map rather than raw bytes so that one
+// It takes already-parsed geometry rather than raw bytes so that one
 // detection run parses the geometry once. Taking bytes here meant the same
 // document was unmarshalled three times per run: for this scan, for the
 // has-geometry gate, and again inside ValidateGeometrySize.
-func scanParts(texture image.Image, bones map[string]Bone) partScan {
+func scanParts(texture image.Image, geo Geometry, companions []Geometry) partScan {
+	bones := boneMap(geo)
 	if texture == nil {
 		return partScan{}
 	}
@@ -224,28 +259,21 @@ func scanParts(texture image.Image, bones map[string]Bone) partScan {
 		return partScan{}
 	}
 
-	hasCubes := false
-	for _, b := range bones {
-		if len(b.Cubes) > 0 {
-			hasCubes = true
-			break
-		}
-	}
-
 	switch {
-	case hasCubes:
-		// Box-UV geometry gives authoritative part regions, so the verdict
-		// can be strict: a "only one limb renders" skin is definitively
+	case geo.HasMesh():
+		// The geometry gives authoritative part regions, so the verdict can
+		// be strict: a "only one limb renders" skin is definitively
 		// invisible rather than merely suspicious.
+		parts := checkFromGeometry(geo, texture, texW/geo.TextureWidth, texH/geo.TextureHeight)
 		return partScan{
-			parts:  checkFromGeometry(bones, texture, texW, texH),
+			parts:  append(parts, animatedParts(parts, companions)...),
 			strict: true,
 			usable: true,
 		}
 
 	case len(bones) > 0:
-		// Persona skin: real bones, no cubes, so no box UVs to sample.
-		// Trusted visible.
+		// Persona skin: real bones, nothing drawn from them, so nothing to
+		// sample. Trusted visible.
 		//
 		// This branch tests parsed bones, NOT "the caller passed some
 		// bytes". Geometry that fails to parse, or parses to nothing, is
@@ -282,17 +310,22 @@ func visibleStandardParts() []SkinPartResult {
 // texture. Every bone with cubes is checked, and standard body part names are
 // mapped to human-readable labels. Bones with no cubes are skipped (they
 // produce no rendered pixels).
-func checkFromGeometry(bones map[string]Bone, texture image.Image, texW, texH float64) []SkinPartResult {
-	// Scale UV rectangles from geometry texture dimensions to actual texture
-	// dimensions. A 128x128 skin with a geometry declaring texture_width=128
-	// needs no scaling; a geometry declaring 64 on a 128 texture scales 2x.
-	scaleX, scaleY := uvScale(texW, texH)
-
+//
+// scaleX/scaleY map the geometry's declared texture_width/height onto the real
+// texture, the same mapping the renderer samples with, so the detector reads
+// the pixels that are drawn. See docs/design-decisions.md#why-the-detector-scales-by-the-declared-texture-size.
+func checkFromGeometry(geo Geometry, texture image.Image, scaleX, scaleY float64) []SkinPartResult {
+	bones := boneMap(geo)
 	seen := map[string]bool{}
 	var results []SkinPartResult
 
 	measure := func(name string, bone Bone) SkinPartResult {
 		total, transparent := countBoneTexture(bone, texture, scaleX, scaleY)
+		if m, ok := bone.Mesh(); ok {
+			t, tr := countPolyTexture(m, texture, scaleX, scaleY)
+			total += t
+			transparent += tr
+		}
 		part := SkinPartResult{
 			Name:        name,
 			Visible:     true,
@@ -307,11 +340,11 @@ func checkFromGeometry(bones map[string]Bone, texture image.Image, texW, texH fl
 	}
 
 	for _, name := range standardPartNames {
-		bone, ok := bones[name]
-		if !ok || len(bone.Cubes) == 0 {
+		bone, ok := findBone(geo, bones, name)
+		if !ok || !drawsSomething(bone) {
 			continue
 		}
-		seen[name] = true
+		seen[bone.Name] = true
 		results = append(results, measure(name, bone))
 	}
 
@@ -322,7 +355,7 @@ func checkFromGeometry(bones map[string]Bone, texture image.Image, texW, texH fl
 	// to marshal straight to JSON.
 	rest := make([]string, 0, len(bones))
 	for name, bone := range bones {
-		if seen[name] || len(bone.Cubes) == 0 {
+		if seen[name] || !drawsSomething(bone) {
 			continue
 		}
 		rest = append(rest, name)
@@ -333,6 +366,120 @@ func checkFromGeometry(bones map[string]Bone, texture image.Image, texW, texH fl
 	}
 
 	return results
+}
+
+// findBone finds a standard part's bone: the exact name if present, else the
+// first bone spelling it in another case.
+func findBone(geo Geometry, bones map[string]Bone, name string) (Bone, bool) {
+	if b, ok := bones[name]; ok {
+		return b, true
+	}
+	for _, b := range geo.Bones {
+		if sameBone(b.Name, name) {
+			return bones[b.Name], true
+		}
+	}
+	return Bone{}, false
+}
+
+// drawsSomething reports whether a bone renders any pixels.
+func drawsSomething(b Bone) bool {
+	if len(b.Cubes) > 0 {
+		return true
+	}
+	m, ok := b.Mesh()
+	return ok && len(m.polygons()) > 0
+}
+
+// animatedParts trusts the standard parts a persona skin draws only from its
+// animated entries (the face, animated limbs). Their textures travel in the
+// skin's animations, which the detector is not given, so there is nothing to
+// measure; leaving them out made a whole persona body read as invisible. A
+// part measured from the main texture keeps its measurement. See
+// docs/design-decisions.md#why-animated-persona-parts-are-trusted.
+func animatedParts(measured []SkinPartResult, companions []Geometry) []SkinPartResult {
+	have := map[string]bool{}
+	for _, p := range measured {
+		have[partOf(p.Name)] = true
+	}
+	var out []SkinPartResult
+	for _, std := range standardPartNames {
+		if have[std] {
+			continue
+		}
+	search:
+		for _, g := range companions {
+			for _, b := range g.Bones {
+				if partOf(b.Name) == std && drawsSomething(b) {
+					out = append(out, SkinPartResult{Name: std, Visible: true, Fraction: 1, FromGeo: true})
+					break search
+				}
+			}
+		}
+	}
+	return out
+}
+
+// countPolyTexture counts the texture pixels a poly mesh's polygons cover -
+// those whose centre falls inside one - and how many of them are transparent.
+// Normalized UVs span the whole texture, V counting up; pixel UVs scale like a
+// cube's.
+func countPolyTexture(m PolyMesh, texture image.Image, scaleX, scaleY float64) (total, transparent int) {
+	b := texture.Bounds()
+	w, h := float64(b.Dx()), float64(b.Dy())
+	for _, poly := range m.polygons() {
+		pts := make([][2]float64, len(poly))
+		for i, c := range poly {
+			if m.NormalizedUVs {
+				pts[i] = [2]float64{c.uv[0] * w, float64(1-c.uv[1]) * h}
+			} else {
+				pts[i] = [2]float64{c.uv[0] * scaleX, c.uv[1] * scaleY}
+			}
+		}
+		x0, y0, x1, y1 := pts[0][0], pts[0][1], pts[0][0], pts[0][1]
+		for _, p := range pts[1:] {
+			x0, x1 = math.Min(x0, p[0]), math.Max(x1, p[0])
+			y0, y1 = math.Min(y0, p[1]), math.Max(y1, p[1])
+		}
+		r := clampedBounds(image.Rect(int(math.Floor(x0)), int(math.Floor(y0)), int(math.Ceil(x1)), int(math.Ceil(y1))), image.Rect(0, 0, b.Dx(), b.Dy()))
+		for y := r.Min.Y; y < r.Max.Y; y++ {
+			for x := r.Min.X; x < r.Max.X; x++ {
+				if !inPolygon(pts, float64(x)+0.5, float64(y)+0.5) {
+					continue
+				}
+				total++
+				_, _, _, a := texture.At(b.Min.X+x, b.Min.Y+y).RGBA()
+				if float64(a)/0xffff <= DefaultMinVisibleAlpha {
+					transparent++
+				}
+			}
+		}
+	}
+	return total, transparent
+}
+
+// inPolygon reports whether (px, py) is inside the polygon fanned from its
+// first corner, edges included.
+func inPolygon(pts [][2]float64, px, py float64) bool {
+	for i := 1; i+1 < len(pts); i++ {
+		a, b, c := pts[0], pts[i], pts[i+1]
+		d1 := edge(a, b, px, py)
+		d2 := edge(b, c, px, py)
+		d3 := edge(c, a, px, py)
+		neg := d1 < 0 || d2 < 0 || d3 < 0
+		pos := d1 > 0 || d2 > 0 || d3 > 0
+		if !(neg && pos) {
+			return true
+		}
+	}
+	return false
+}
+
+// edge is the 2D cross product (b-a) x (p-a). The explicit conversions stop
+// Go fusing a multiply into the subtraction on architectures that can, which
+// would change the last bit against the Rust port.
+func edge(a, b [2]float64, px, py float64) float64 {
+	return float64((b[0]-a[0])*(py-a[1])) - float64((b[1]-a[1])*(px-a[0]))
 }
 
 // uvScale returns the scale to apply to UV coordinates in texture pixels to
@@ -436,13 +583,10 @@ func classifyVisibility(results []SkinPartResult, th thresholds, strict bool) Sk
 	for i := range results {
 		name := results[i].Name
 		results[i].Visible = results[i].Fraction >= th.minVisibleFraction
-		if accessoryBones[name] {
+		if isAccessory(name) {
 			continue
 		}
-		standard := name
-		if overlayBones[name] != "" {
-			standard = overlayBones[name]
-		}
+		standard := partOf(name)
 		if results[i].Visible {
 			visParent[standard] = true
 		}
@@ -482,7 +626,11 @@ func geometrySizeOf(bones map[string]Bone, minSize float64) GeometrySizeResult {
 		minSize = DefaultMinGeometrySize
 	}
 
-	if _, hasHead := bones["head"]; !hasHead {
+	hasHead := false
+	for name := range bones {
+		hasHead = hasHead || sameBone(name, "head")
+	}
+	if !hasHead {
 		return GeometrySizeResult{
 			Pass: false,
 			Violations: []GeometryViolation{
@@ -539,9 +687,10 @@ func validateWith(texture image.Image, geomData []byte, th thresholds) SkinVisib
 	th = th.resolved()
 
 	// Parsed once, here, and shared with both passes below.
-	bones := getGeometry(geomData)
+	geo, companions, _ := detectionGeometry(geomData)
+	bones := boneMap(geo)
 
-	scan := scanParts(texture, bones)
+	scan := scanParts(texture, geo, companions)
 	if !scan.usable {
 		return unusableResult()
 	}
@@ -556,7 +705,12 @@ func validateWith(texture image.Image, geomData []byte, th thresholds) SkinVisib
 	if len(bones) > 0 {
 		tiny := map[string]bool{}
 		for _, v := range geometrySizeOf(bones, th.minGeometrySize).Violations {
-			tiny[v.Bone] = true
+			// Standard parts are reported under their standard spelling.
+			name := v.Bone
+			if std := standardName(name); std != "" {
+				name = std
+			}
+			tiny[name] = true
 		}
 		for i := range scan.parts {
 			if tiny[scan.parts[i].Name] {
@@ -685,26 +839,37 @@ func boneWorldSize(b Bone) float64 {
 // entry with the most cubes (same fallback as SelectGeometry). Returns nil for
 // nil/empty input.
 func getGeometry(geomData []byte) map[string]Bone {
-	if len(geomData) == 0 {
+	geo, _, ok := detectionGeometry(geomData)
+	if !ok {
 		return nil
+	}
+	return boneMap(geo)
+}
+
+// detectionGeometry parses geomData and picks the entry with the most cubes,
+// the one the detector judges, plus the persona animated entries that draw
+// alongside it. ok is false when there is nothing to judge.
+func detectionGeometry(geomData []byte) (geo Geometry, companions []Geometry, ok bool) {
+	if len(geomData) == 0 {
+		return Geometry{}, nil, false
 	}
 	geos, err := ParseGeometry(geomData)
 	if err != nil || len(geos) == 0 {
-		return nil
+		return Geometry{}, nil, false
 	}
 
-	geo := geos[0]
+	geo = geos[0]
 	for _, g := range geos[1:] {
 		if g.TotalCubes() > geo.TotalCubes() {
 			geo = g
 		}
 	}
-
-	bones := make(map[string]Bone, len(geo.Bones))
-	for _, b := range geo.Bones {
-		bones[b.Name] = b
+	for _, t := range []AnimatedType{AnimatedFace, AnimatedBody32, AnimatedBody128} {
+		if g, found := animatedEntry(geos, t); found && g.Identifier != geo.Identifier {
+			companions = append(companions, g)
+		}
 	}
-	return bones
+	return geo, companions, true
 }
 
 // getGeometryBytes marshals a Geometry back to JSON for testing.

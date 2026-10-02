@@ -36,11 +36,17 @@ The patch is what the client renders from, so the patch wins. `ArmSize` is at be
 
 ## Why persona skins fall back to 2D
 
-Persona (avatar-builder) skins arrive with real, named bones and **zero cubes in all of them**. Bedrock never sends mesh data for them.
+Persona (character creator) skins carry their mesh as `poly_mesh` on the bones, not cubes, and are drawn in 3D like any other model - see [geometry-format.md](geometry-format.md#persona-skins). The flat crop is only for geometry that draws nothing at all: bones with neither cubes nor a poly mesh.
 
-There is genuinely nothing to rasterize — this is not a parse failure or a corrupt upload. Failing would mean a caller proxying real players sees errors for a large class of perfectly normal skins. So `Render` checks `TotalCubes() == 0` and falls back to a flat texture crop, which is a reasonable approximation of what the client shows.
+This used to be every persona skin. The renderer read cubes only, saw none, and cropped the vanilla box-UV regions out of a texture that is not laid out that way - a production check of 1,452 persona skins found head and avatar views empty and body views stitched from whatever pixels sat in the vanilla regions. Reading the poly meshes is what fixed that, not a better crop.
 
-Putting that check inside `Render` rather than leaving it to callers is deliberate: it is the single most likely thing for someone to omit, and omitting it produces confusing failures on real traffic. It is the main reason to prefer `Render` over driving the mesh functions directly.
+The check stays inside `Render` rather than being left to callers: failing on bone-only geometry would mean a caller proxying real players sees errors for skins that are not broken.
+
+## Why animated persona parts are trusted
+
+A persona skin's head - and on some skins the whole body - is drawn from a geometry entry made for one of the skin's animations (`geometry.animated_face_…`, `geometry.animated_128x128_…`), textured with that animation's image. The detector is given the skin texture and the geometry, never the animation images, so it cannot measure those parts.
+
+It used to leave them out, which made a persona skin whose body is all animated parts read as one visible head: *invisible*. It now counts a standard part drawn only by an animated entry as visible. A part the main texture also draws keeps its measurement, so this trusts nothing the detector could have checked.
 
 ## Why 2D cropping reuses boxUVRects
 
@@ -163,6 +169,12 @@ Geometry that cannot be read now falls through to the texture-only standard-layo
 `boneWorldSize` measures the largest axis of the box enclosing a bone's cubes. It used to sum each axis across cubes instead, which is not a size of anything — a hundred cubes of 0.05 units stacked in the same place summed to 5.0 and cleared `DefaultMinGeometrySize`, so the tiny check could be defeated by splitting one invisible cube into many.
 
 For the single-cube bones that make up every ordinary skin the two agree exactly (`size + 2*inflate` on each axis, then the max), so only that bypass changes verdict.
+
+## Why the detector scales by the declared texture size
+
+Cube UVs are in the pixels of the atlas the geometry *declares* (`texture_width` / `texture_height`), not the texture that arrives. The renderer divides by the declared size and samples the real texture, so a 128-wide geometry on a 128 texture reads its UVs one to one, and a 64-wide geometry on a 128 texture reads them doubled.
+
+The detector used to assume every geometry declared 64, and scaled by `texture width / 64` regardless. A 128-wide model on a 128 texture had its UVs doubled off the edge of the atlas, so every part read as transparent while the render showed a whole character - a production skin from a Galaxite pack came back invisible with 12% of the frame drawn. It now scales by `texture size / declared size`, the same mapping the renderer uses, so it measures the pixels that are drawn. Without geometry it still uses the standard 64-wide layout.
 
 ## Why the cape is built before the camera
 

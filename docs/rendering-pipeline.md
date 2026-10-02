@@ -209,9 +209,17 @@ if capeTexture != nil && len(capeTriangles) > 0 {
 
 The cape entry is its own self-contained mini-hierarchy (`body` → `waist` → `cape`), resolved purely from parent names within that entry, so it positions itself without reference to the body model.
 
+### Poly meshes
+
+A bone's `poly_mesh` is drawn alongside its cubes. Each polygon is fanned into triangles from its first corner, and each corner is placed exactly as a cube corner is: through the bone's world transform from its pivot, then X negated. The UVs ride on the vertices, so the mirror needs no U flip of its own - the box-shaped poly meshes persona skins use render pixel-for-pixel like the equivalent cube.
+
+`normalized_uvs` UVs are 0..1 with V counting up from the bottom, which is how the sampler reads them. Pixel UVs count down from the top, like a cube's, and are flipped and divided by the declared texture size the same way.
+
+A persona skin spreads its parts over several entries, each with its own texture: the main entry uses the skin image, and the `geometry.animated_*` entries use the images in the skin's animation list (`Options.Animated`). Each is drawn as its own layer, in order - body, animated parts, cape - into the same depth buffer.
+
 ## The 2D fallback
 
-When the selected geometry has no cubes anywhere — a persona skin — there is nothing to tessellate. `Render2D` crops the standard vanilla box-UV regions straight out of the texture and composites a flat paper doll:
+When the selected geometry draws nothing at all - bones with neither cubes nor a poly mesh - there is nothing to tessellate. `Render2D` crops the standard vanilla box-UV regions straight out of the texture and composites a flat paper doll:
 
 ```
         ┌──────┐
