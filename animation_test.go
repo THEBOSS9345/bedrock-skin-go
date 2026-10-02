@@ -345,3 +345,26 @@ func TestMissingBones(t *testing.T) {
 		t.Errorf("MissingBones = %v", got)
 	}
 }
+
+// Frames rasterized in parallel are the frames rasterized one at a time.
+func TestParallelFramesMatchSerial(t *testing.T) {
+	base := AnimationOptions{Options: Options{Texture: testTexture(), Cape: testTexture(), Size: 48}, Animation: MotionWalk, FPS: 8}
+	serial := base
+	serial.Workers = 1
+	a, err := RenderFrames(serial)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := RenderFrames(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(a) != len(b) {
+		t.Fatalf("%d frames serial, %d parallel", len(a), len(b))
+	}
+	for i := range a {
+		if !bytes.Equal(a[i].(*image.NRGBA).Pix, b[i].(*image.NRGBA).Pix) {
+			t.Fatalf("frame %d differs", i)
+		}
+	}
+}

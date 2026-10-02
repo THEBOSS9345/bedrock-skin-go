@@ -440,8 +440,11 @@ type AnimationOptions struct {
 	Animation Animator  // required; ErrNoAnimation without one
 	FPS       int       // frames per second; zero means 20
 	Frames    int       // zero means one loop
+	Workers   int       // frames rasterized at once; zero means GOMAXPROCS, 1 one at a time
 }
 ```
+
+Frames are rasterized in parallel by default; the images are the same at any `Workers`. See [design-decisions.md](design-decisions.md#why-animation-frames-render-in-parallel).
 
 ## Invisibility detection
 
