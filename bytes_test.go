@@ -2,6 +2,7 @@ package bedrockskin
 
 import (
 	"bytes"
+	"errors"
 	"image"
 	"image/png"
 	"testing"
@@ -205,5 +206,47 @@ func TestDecodeImageRejectsGarbage(t *testing.T) {
 	}
 	if _, err := DecodeImage([]byte("definitely not an image")); err == nil {
 		t.Error("expected an error for garbage data")
+	}
+}
+
+// The bytes path for animations is RenderGIF and RenderFrames with the decode
+// and encode folded in: the same GIF, the same frames.
+func TestAnimationBytesMatchRender(t *testing.T) {
+	texBytes := testTextureBytes(t)
+	tex, _ := DecodeImage(texBytes)
+	opts := AnimationBytesOptions{BytesOptions: BytesOptions{Texture: texBytes, Size: 48}, Animation: MotionWave, FPS: 6}
+
+	got, err := RenderGIFBytes(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := RenderGIF(AnimationOptions{Options: Options{Texture: tex, Size: 48}, Animation: MotionWave, FPS: 6})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatal("RenderGIFBytes differs from RenderGIF")
+	}
+
+	pngs, err := opts.RenderFramesPNG()
+	if err != nil {
+		t.Fatal(err)
+	}
+	frames, _ := RenderFrames(AnimationOptions{Options: Options{Texture: tex, Size: 48}, Animation: MotionWave, FPS: 6})
+	if len(pngs) != len(frames) {
+		t.Fatalf("%d PNGs for %d frames", len(pngs), len(frames))
+	}
+	for i := range pngs {
+		img, err := DecodeImage(pngs[i])
+		if err != nil || !bytes.Equal(img.(*image.NRGBA).Pix, frames[i].(*image.NRGBA).Pix) {
+			t.Fatalf("frame %d: %v", i, err)
+		}
+	}
+
+	if _, err := RenderGIFBytes(AnimationBytesOptions{BytesOptions: BytesOptions{Texture: texBytes}}); !errors.Is(err, ErrNoAnimation) {
+		t.Fatalf("no animation: got %v, want ErrNoAnimation", err)
+	}
+	if _, err := RenderGIFBytes(AnimationBytesOptions{Animation: MotionWalk}); !errors.Is(err, ErrNoTexture) {
+		t.Fatalf("no texture: got %v, want ErrNoTexture", err)
 	}
 }

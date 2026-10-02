@@ -32,6 +32,10 @@ type BytesOptions struct {
 	// Cape is an encoded PNG or JPEG cape texture, or nil.
 	Cape []byte
 
+	// Animated holds a persona skin's animation images, encoded; see
+	// Options.Animated.
+	Animated []AnimatedTextureBytes
+
 	Identifier string
 	View       View
 	Angle      Angle
@@ -55,27 +59,52 @@ type BytesOptions struct {
 // uploads should bound image dimensions first — see
 // docs/recipes.md#handling-untrusted-uploads.
 func RenderBytes(opts BytesOptions) ([]byte, error) {
+	o, err := opts.decode()
+	if err != nil {
+		return nil, err
+	}
+	return o.RenderPNG()
+}
+
+// AnimatedTextureBytes is AnimatedTexture with the image encoded.
+type AnimatedTextureBytes struct {
+	Type    AnimatedType
+	Texture []byte // an encoded PNG or JPEG
+}
+
+// decode turns encoded options into Options: every image decoded, the
+// geometry parsed.
+func (opts BytesOptions) decode() (Options, error) {
 	if len(opts.Texture) == 0 {
-		return nil, ErrNoTexture
+		return Options{}, ErrNoTexture
 	}
 
 	texture, err := DecodeImage(opts.Texture)
 	if err != nil {
-		return nil, fmt.Errorf("texture: %w", err)
+		return Options{}, fmt.Errorf("texture: %w", err)
 	}
 
 	var geos []Geometry
 	if !IsEmpty(opts.Geometry) {
 		if geos, err = ParseGeometry(opts.Geometry); err != nil {
-			return nil, fmt.Errorf("geometry: %w", err)
+			return Options{}, fmt.Errorf("geometry: %w", err)
 		}
 	}
 
 	var cape image.Image
 	if len(opts.Cape) > 0 {
 		if cape, err = DecodeImage(opts.Cape); err != nil {
-			return nil, fmt.Errorf("cape: %w", err)
+			return Options{}, fmt.Errorf("cape: %w", err)
 		}
+	}
+
+	var animated []AnimatedTexture
+	for _, a := range opts.Animated {
+		img, err := DecodeImage(a.Texture)
+		if err != nil {
+			return Options{}, fmt.Errorf("animation %d: %w", a.Type, err)
+		}
+		animated = append(animated, AnimatedTexture{Type: a.Type, Texture: img})
 	}
 
 	return Options{
@@ -88,8 +117,74 @@ func RenderBytes(opts BytesOptions) ([]byte, error) {
 		Parts:      opts.Parts,
 		Camera:     opts.Camera,
 		Size:       opts.Size,
-	}.RenderPNG()
+		Animated:   animated,
+	}, nil
 }
+
+// AnimationBytesOptions is AnimationOptions with encoded bytes in place of
+// images: BytesOptions plus the animation fields, which behave as their
+// AnimationOptions counterparts.
+type AnimationBytesOptions struct {
+	BytesOptions
+
+	Animation Animator // required; ErrNoAnimation without one
+	FPS       int
+	Frames    int
+	Workers   int
+}
+
+func (opts AnimationBytesOptions) decode() (AnimationOptions, error) {
+	if opts.Animation == nil {
+		return AnimationOptions{}, ErrNoAnimation
+	}
+	o, err := opts.BytesOptions.decode()
+	if err != nil {
+		return AnimationOptions{}, err
+	}
+	return AnimationOptions{Options: o, Animation: opts.Animation, FPS: opts.FPS, Frames: opts.Frames, Workers: opts.Workers}, nil
+}
+
+// RenderGIFBytes renders an animation from encoded bytes and returns GIF
+// bytes: RenderGIF with decoding folded in.
+//
+//	gif, err := bedrockskin.RenderGIFBytes(bedrockskin.AnimationBytesOptions{
+//		BytesOptions: bedrockskin.BytesOptions{Texture: textureBytes, Size: 256},
+//		Animation:    bedrockskin.MotionWalk,
+//	})
+func RenderGIFBytes(opts AnimationBytesOptions) ([]byte, error) {
+	o, err := opts.decode()
+	if err != nil {
+		return nil, err
+	}
+	return RenderGIF(o)
+}
+
+// RenderFramesPNG renders an animation from encoded bytes and returns every
+// frame as PNG bytes, in order: RenderFrames with decoding and encoding folded
+// in, for callers that build their own animation format.
+func RenderFramesPNG(opts AnimationBytesOptions) ([][]byte, error) {
+	o, err := opts.decode()
+	if err != nil {
+		return nil, err
+	}
+	frames, err := RenderFrames(o)
+	if err != nil {
+		return nil, err
+	}
+	out := make([][]byte, len(frames))
+	for i, f := range frames {
+		if out[i], err = EncodePNG(f); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// RenderGIF is the method form of RenderGIFBytes.
+func (o AnimationBytesOptions) RenderGIF() ([]byte, error) { return RenderGIFBytes(o) }
+
+// RenderFramesPNG is the method form of RenderFramesPNG.
+func (o AnimationBytesOptions) RenderFramesPNG() ([][]byte, error) { return RenderFramesPNG(o) }
 
 // Render renders these options, as the package-level Render function does.
 // It is the method form, for callers who prefer to build options and render
