@@ -3,8 +3,15 @@
 Versions match bedrock-skin-rs: the same version renders the same images
 with the same features in both.
 
-## Unreleased
+## v0.2.1
 
+- `WireSkin`: a skin as a Bedrock packet carries it - raw RGBA, geometry,
+  resource patch, animation list - to ready Options (`Options()`) or a
+  detector `Skin` (`Skin()`), the patch's model picked and persona faces
+  attached.
+- `Options.WritePNG` and `WriteGIF`: render straight into an `io.Writer`.
+- `cmd/bedrock-skin`: try the library from the command line.
+- `Example` functions for pkg.go.dev.
 - `PolyMesh.Polygons()` and `PolyVertex`: a poly mesh's polygons with each
   corner's position, normal and UV looked up.
 
