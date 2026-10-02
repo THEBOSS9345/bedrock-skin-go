@@ -221,6 +221,8 @@ Everything else in this document was verified against captures.
 
 Each polygon is a list of corners, each corner `[position, normal, uv]` indices into the lists above; three corners make a triangle, four a quad. `polys` may instead be `"tri_list"` or `"quad_list"`, meaning the vertices taken in order, three or four at a time. Positions are in model space like a cube's origin. With `normalized_uvs` the UVs are 0..1 across the texture with V counting **up**; without, they are texture pixels against the declared texture size, V counting down. A polygon pointing outside the lists is skipped. Normals are not used - skins are drawn unlit.
 
+To read one, `Bone.Mesh()` gives the mesh as the file has it, and `PolyMesh.Polygons()` gives every polygon with each corner's position, normal and UV looked up - `tri_list` and `quad_list` included, broken polygons skipped as the renderer skips them. From a [geometry tree](#picking-values-out-of-a-file), `GeometryValue.Decode(&mesh)` reads one by path, e.g. `*/bones/body/poly_mesh`.
+
 ### Persona skins
 
 A persona (character creator) skin has no cubes at all. Every part is a box-shaped poly mesh, laid out in the texture in box-UV regions, and the parts are spread over several entries of one file:

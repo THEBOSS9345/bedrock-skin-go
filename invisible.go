@@ -388,7 +388,7 @@ func drawsSomething(b Bone) bool {
 		return true
 	}
 	m, ok := b.Mesh()
-	return ok && len(m.polygons()) > 0
+	return ok && len(m.Polygons()) > 0
 }
 
 // animatedParts trusts the standard parts a persona skin draws only from its
@@ -427,13 +427,13 @@ func animatedParts(measured []SkinPartResult, companions []Geometry) []SkinPartR
 func countPolyTexture(m PolyMesh, texture image.Image, scaleX, scaleY float64) (total, transparent int) {
 	b := texture.Bounds()
 	w, h := float64(b.Dx()), float64(b.Dy())
-	for _, poly := range m.polygons() {
+	for _, poly := range m.Polygons() {
 		pts := make([][2]float64, len(poly))
 		for i, c := range poly {
 			if m.NormalizedUVs {
-				pts[i] = [2]float64{c.uv[0] * w, float64(1-c.uv[1]) * h}
+				pts[i] = [2]float64{c.UV[0] * w, float64(1-c.UV[1]) * h}
 			} else {
-				pts[i] = [2]float64{c.uv[0] * scaleX, c.uv[1] * scaleY}
+				pts[i] = [2]float64{c.UV[0] * scaleX, c.UV[1] * scaleY}
 			}
 		}
 		x0, y0, x1, y1 := pts[0][0], pts[0][1], pts[0][0], pts[0][1]

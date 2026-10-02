@@ -675,6 +675,18 @@ One normalized model, regardless of which wire format it came from.
 
 **`func (b Bone) Mesh() (PolyMesh, bool)`** — the bone's poly mesh, read from `PolyMesh`. See [geometry-format.md](geometry-format.md#poly-meshes).
 
+**`func (m PolyMesh) Polygons() [][]PolyVertex`** — every polygon, each corner looked up:
+
+```go
+type PolyVertex struct {
+	Position [3]float64 // model space
+	Normal   [3]float64 // zero when the corner names no usable normal
+	UV       [2]float64 // 0..1, V up, with NormalizedUVs; else texture pixels
+}
+```
+
+`tri_list` and `quad_list` are resolved; a polygon whose position or UV index is out of range is skipped, as the renderer skips it.
+
 ### Persona animation textures
 
 ```go
