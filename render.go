@@ -221,6 +221,13 @@ func angleToYawPitch(angle Angle) (yawDegrees, pitchDegrees float64) {
 // that baseline was established.
 func cameraForYawPitch(triangles []*fauxgl.Triangle, fovDegrees, marginFactor, yawDegrees, pitchDegrees float64) (eye, center fauxgl.Vector) {
 	min, max := boundingBoxOf(triangles)
+	return cameraForBounds(min, max, fovDegrees, marginFactor, yawDegrees, pitchDegrees)
+}
+
+// cameraForBounds is cameraForYawPitch with the bounding box already worked
+// out, so a caller holding one - Frames, across many draws - can refit the
+// camera without walking the triangles again.
+func cameraForBounds(min, max fauxgl.Vector, fovDegrees, marginFactor, yawDegrees, pitchDegrees float64) (eye, center fauxgl.Vector) {
 	center = fauxgl.Vector{X: (min.X + max.X) / 2, Y: (min.Y + max.Y) / 2, Z: (min.Z + max.Z) / 2}
 	halfExtent := math.Max((max.X-min.X)/2, math.Max((max.Y-min.Y)/2, (max.Z-min.Z)/2))
 	if halfExtent <= 0 {

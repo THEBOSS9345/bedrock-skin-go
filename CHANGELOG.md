@@ -3,6 +3,17 @@
 Versions match bedrock-skin-rs: the same version renders the same images
 with the same features in both.
 
+## v0.2.4
+
+- `PrepareFrames` and `Frames`: an animation prepared once, its per-frame
+  scenes and their shared bounding box kept so a viewer draws one frame at a
+  time as its own camera moves. `Frames.Draw(i, size, cam)` rasterizes one
+  frame and refits the shared framing to `cam`, so every frame at one camera
+  keeps the model in place instead of chasing each pose; `Frames.Len` is the
+  frame count. `RenderFrames` is `PrepareFrames` plus drawing every frame, so
+  the two always agree. For live previews that rotate while animating. See
+  [docs/animation.md](docs/animation.md#drawing-frames-as-a-camera-moves).
+
 ## v0.2.3
 
 - Armor: `Options.Armor` wears a helmet, chestplate, leggings and boots, one

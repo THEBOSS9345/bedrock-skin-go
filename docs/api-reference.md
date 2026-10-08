@@ -553,6 +553,29 @@ Every frame of the animation, sharing one camera fitted around its whole sweep.
 
 The same frames as a looping GIF.
 
+### `func PrepareFrames(opts AnimationOptions) (*Frames, error)`
+
+Builds every frame's scene and the one camera they share, without rasterizing
+anything. Draw the result with `Frames.Draw`; `RenderFrames` is this plus
+drawing all of them. Use it when a viewer draws frames one at a time as its
+own camera moves. See
+[animation.md](animation.md#drawing-frames-as-a-camera-moves).
+
+### `type Frames`
+
+```go
+func (f *Frames) Len() int
+func (f *Frames) Draw(i, size int, cam *Camera) image.Image
+```
+
+An animation prepared once, kept so a viewer can draw frames one at a time as
+its camera moves. `Len` is the frame count. `Draw` rasterizes frame `i` at a
+`size`-square image, wrapping `i` into range, using the camera the frames were
+prepared with unless `cam` is set, when it refits the shared framing to `cam` -
+every frame at one camera still shares a single framing, so whole-body motion
+stays on screen instead of the camera chasing each pose. A persona skin's flat
+crop is returned as prepared, whatever size was asked for.
+
 ### `type AnimationOptions`
 
 ```go

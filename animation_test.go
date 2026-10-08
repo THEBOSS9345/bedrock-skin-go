@@ -253,6 +253,69 @@ func TestRenderAnimation(t *testing.T) {
 	}
 }
 
+// A prepared frame set draws the frames RenderFrames does, one at a time, and
+// keeps their shared camera: root motion stays on screen rather than the camera
+// chasing each pose.
+func TestPrepareFramesDraw(t *testing.T) {
+	const rootMotion = `{"format_version":"1.8.0","animations":{"animation.test.root":{
+		"loop":true,"animation_length":1.0,"bones":{"root":{"position":{"0.0":[0,0,0],"0.5":[0,4,0],"1.0":[0,0,0]}}}}}}`
+	anims, err := ParseAnimations([]byte(rootMotion))
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts := AnimationOptions{Options: Options{Texture: testTexture(), Size: 64}, Animation: anims["animation.test.root"], FPS: 4}
+	f, err := PrepareFrames(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Len() != 4 {
+		t.Fatalf("Len %d, want 4", f.Len())
+	}
+	// The root lifts the whole model; one shared camera shows it. A camera
+	// refit per pose would cancel it, leaving the head at one row.
+	if low, high := headTop(f.Draw(0, 64, nil)), headTop(f.Draw(2, 64, nil)); low == high {
+		t.Errorf("head at row %d on the ground and %d at the top: framing cancelled the jump", low, high)
+	}
+	// Drawn one at a time is drawn as a batch.
+	frames, err := RenderFrames(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range frames {
+		if got := f.Draw(i, 64, nil); !bytes.Equal(got.(*image.NRGBA).Pix, frames[i].(*image.NRGBA).Pix) {
+			t.Fatalf("frame %d drawn alone differs from RenderFrames", i)
+		}
+	}
+	if !bytes.Equal(f.Draw(f.Len(), 64, nil).(*image.NRGBA).Pix, f.Draw(0, 64, nil).(*image.NRGBA).Pix) {
+		t.Error("Draw should wrap an out-of-range frame index")
+	}
+	if bytes.Equal(f.Draw(0, 64, nil).(*image.NRGBA).Pix, f.Draw(0, 64, &Camera{Yaw: 90}).(*image.NRGBA).Pix) {
+		t.Error("a refit camera left the view unchanged")
+	}
+	// A scaled model refits the same way the batch does: a camera margin is
+	// divided by Scale.Model exactly as scene() divides it.
+	cam := &Camera{Yaw: 20, Pitch: 10, FOV: 35, Margin: 1.2}
+	scaled := opts
+	scaled.Scale.Model = 2
+	scaled.Camera = cam
+	sf, err := PrepareFrames(scaled)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scaledFrames, err := RenderFrames(scaled)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range scaledFrames {
+		if got := sf.Draw(i, 64, cam); !bytes.Equal(got.(*image.NRGBA).Pix, scaledFrames[i].(*image.NRGBA).Pix) {
+			t.Errorf("scaled frame %d drawn alone differs from RenderFrames", i)
+		}
+	}
+	if _, err := PrepareFrames(AnimationOptions{Options: Options{Texture: testTexture()}}); !errors.Is(err, ErrNoAnimation) {
+		t.Errorf("no animation: %v, want ErrNoAnimation", err)
+	}
+}
+
 // headTop is the first row with an opaque pixel.
 func headTop(img image.Image) int {
 	b := img.Bounds()

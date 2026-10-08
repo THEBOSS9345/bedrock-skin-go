@@ -186,8 +186,35 @@ func (o AnimationOptions) timing() (fps, frames int) {
 
 // RenderFrames renders the motion frame by frame. Every frame shares one
 // camera, fitted around the motion's whole sweep, so the model moves within a
-// still frame rather than the frame chasing it.
+// still frame rather than the frame chasing it. For a viewer that draws frames
+// as its own camera moves, PrepareFrames keeps the same scenes and camera and
+// draws them one at a time.
 func RenderFrames(opts AnimationOptions) ([]image.Image, error) {
+	f, err := PrepareFrames(opts)
+	if err != nil {
+		return nil, err
+	}
+	return f.all(opts.Workers), nil
+}
+
+// Frames is an animation prepared once: its per-frame scenes and the bounding
+// box they share, kept so a viewer can draw frames one at a time as its camera
+// moves. RenderFrames builds the same thing and discards it after drawing every
+// frame; Frames keeps it, so one frame costs one rasterization and every frame
+// of an angle is framed by one camera - root and whole-body motion stay on
+// screen instead of the camera chasing each pose. See docs/animation.md.
+type Frames struct {
+	scenes []scene
+	min    fauxgl.Vector
+	max    fauxgl.Vector
+	scale  float64     // Options.Scale.Model applied to a camera's margin
+	flat   image.Image // non-nil for a persona skin's flat crop
+}
+
+// PrepareFrames builds every frame of an animation, and the one camera they
+// share, without rasterizing anything. It is RenderFrames split in two; draw
+// the result with Frames.Draw.
+func PrepareFrames(opts AnimationOptions) (*Frames, error) {
 	if opts.Animation == nil {
 		return nil, ErrNoAnimation
 	}
@@ -197,9 +224,9 @@ func RenderFrames(opts AnimationOptions) ([]image.Image, error) {
 		}
 	}
 	fps, frames := opts.timing()
-	scenes := make([]scene, frames)
+	f := &Frames{scenes: make([]scene, frames), scale: opts.Scale.Model}
 	var sweep []*fauxgl.Triangle
-	for i := range scenes {
+	for i := range f.scenes {
 		sc, err := opts.Options.scene(opts.Animation.Pose(float64(i) / float64(fps)))
 		if err != nil {
 			return nil, err
@@ -207,33 +234,82 @@ func RenderFrames(opts AnimationOptions) ([]image.Image, error) {
 		if sc.flat != nil {
 			// Geometry that draws nothing has nothing to move: every frame
 			// is the flat crop.
-			out := make([]image.Image, frames)
-			for j := range out {
-				out[j] = sc.flat
-			}
-			return out, nil
+			f.flat = sc.flat
+			return f, nil
 		}
-		scenes[i] = sc
+		f.scenes[i] = sc
 		sweep = append(sweep, sc.framing()...)
 	}
-	first := scenes[0]
-	eye, center := cameraForYawPitch(sweep, first.fov, first.margin, first.yaw, first.pitch)
+	f.min, f.max = boundingBoxOf(sweep)
+	return f, nil
+}
+
+// Len is how many frames the animation has.
+func (f *Frames) Len() int { return len(f.scenes) }
+
+// Draw rasterizes frame i at size, using the camera the frames were prepared
+// with unless cam is set, when it refits the shared framing to cam. Refitting
+// is what turns a draw into an orbit: every frame at one camera still shares a
+// single framing. i wraps into range. A persona skin's flat crop is returned as
+// prepared, whatever size was asked for.
+func (f *Frames) Draw(i, size int, cam *Camera) image.Image {
+	if f.flat != nil {
+		return f.flat
+	}
+	sc := f.scenes[0]
+	fov, margin, yaw, pitch := sc.fov, sc.margin, sc.yaw, sc.pitch
+	if cam != nil {
+		if cam.FOV > 0 {
+			fov = cam.FOV
+		}
+		if cam.Margin > 0 {
+			margin = cam.Margin
+		}
+		if f.scale > 0 {
+			// scene() divides a camera's margin by Scale.Model, so a refit
+			// has to as well or a scaled model frames differently.
+			margin /= f.scale
+		}
+		yaw, pitch = cam.Yaw, cam.Pitch
+	}
+	if size <= 0 {
+		size = sc.size
+	}
+	i %= len(f.scenes)
+	if i < 0 {
+		i += len(f.scenes)
+	}
+	eye, center := cameraForBounds(f.min, f.max, fov, margin, yaw, pitch)
+	return rasterize(f.scenes[i].layers, eye, center, fov, size)
+}
+
+// all rasterizes every frame with the shared camera - the batch RenderFrames
+// uses.
+func (f *Frames) all(workers int) []image.Image {
+	frames := len(f.scenes)
 	out := make([]image.Image, frames)
-	workers := opts.Workers
+	if f.flat != nil {
+		for i := range out {
+			out[i] = f.flat
+		}
+		return out
+	}
+	sc := f.scenes[0]
+	eye, center := cameraForBounds(f.min, f.max, sc.fov, sc.margin, sc.yaw, sc.pitch)
 	if workers <= 0 {
 		workers = runtime.GOMAXPROCS(0)
 	}
 	workers = min(workers, frames)
 	if workers == 1 {
-		for i, sc := range scenes {
-			out[i] = rasterize(sc.layers, eye, center, sc.fov, sc.size)
+		for i := range f.scenes {
+			out[i] = rasterize(f.scenes[i].layers, eye, center, sc.fov, sc.size)
 		}
-		return out, nil
+		return out
 	}
 	// Each frame has its own buffers and its own slot in out, so the
 	// workers share nothing but the read-only scenes and textures.
 	next := make(chan int, frames)
-	for i := range scenes {
+	for i := range f.scenes {
 		next <- i
 	}
 	close(next)
@@ -243,13 +319,12 @@ func RenderFrames(opts AnimationOptions) ([]image.Image, error) {
 		go func() {
 			defer wg.Done()
 			for i := range next {
-				sc := scenes[i]
-				out[i] = rasterize(sc.layers, eye, center, sc.fov, sc.size)
+				out[i] = rasterize(f.scenes[i].layers, eye, center, sc.fov, sc.size)
 			}
 		}()
 	}
 	wg.Wait()
-	return out, nil
+	return out
 }
 
 // RenderGIF renders the motion as a looping animated GIF. GIF holds 256

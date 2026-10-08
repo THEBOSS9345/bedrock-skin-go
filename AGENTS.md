@@ -31,7 +31,7 @@ mesh.go             bone matrices, cubes -> triangles, UV resolution
 render.go           bone scoping, camera, rasterization internals
 render_options.go   Options and Render, the public entry point
 render2d.go         flat fallback for persona skins
-animation.go        poses, the built-in motions, RenderFrames/RenderGIF
+animation.go        poses, the built-in motions, RenderFrames/RenderGIF, PrepareFrames
 animfile.go         Bedrock animation files (Blockbench exports)
 molang.go           the Molang subset animation files use
 examples.go         ExampleAnimations: examples/animations, embedded

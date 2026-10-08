@@ -200,6 +200,8 @@ gifBytes, err := bedrockskin.RenderGIF(bedrockskin.AnimationOptions{
 
 33 example animations come bundled — dances, emotes, a backflip, fighting moves — as `ExampleAnimations()` and as files in [examples/animations](examples/animations). Not every Minecraft animation plays on every model: an animation moves bones by name, so one made for a mob with wings or a tail does nothing on a player, and ones driven by the game's state (where a mob looks, what it holds) hold still. `MissingBones` tells you. See [docs/animation.md](docs/animation.md).
 
+A viewer that rotates the model while it plays does not want the whole GIF at once: `PrepareFrames` builds the frames and their shared camera without drawing, then `Frames.Draw` rasterizes one frame at the viewer's own camera as it moves. See [docs/animation.md](docs/animation.md#drawing-frames-as-a-camera-moves).
+
 ## Reading geometry files
 
 `ParseGeometryTree` reads a whole geometry file and picks any value out of it by path, the way bones are picked by name:
