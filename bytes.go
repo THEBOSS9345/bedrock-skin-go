@@ -128,6 +128,35 @@ func RenderItemBytes(opts ItemBytesOptions) ([]byte, error) {
 	return EncodePNG(img)
 }
 
+// ItemAnimationBytesOptions is ItemAnimationOptions with the item's sprite
+// encoded.
+type ItemAnimationBytesOptions struct {
+	ItemBytesOptions
+
+	Duration float64
+	FPS      int
+	Frames   int
+}
+
+// RenderItemGIFBytes spins an item on its own from encoded bytes and returns
+// GIF bytes: RenderItemGIF with decoding folded in.
+func RenderItemGIFBytes(opts ItemAnimationBytesOptions) ([]byte, error) {
+	if len(opts.Item) == 0 {
+		return nil, ErrNoTexture
+	}
+	item, err := DecodeImage(opts.Item)
+	if err != nil {
+		return nil, fmt.Errorf("item: %w", err)
+	}
+	o := opts.ItemBytesOptions
+	return RenderItemGIF(ItemAnimationOptions{
+		ItemOptions: ItemOptions{Item: item, Angle: o.Angle, Camera: o.Camera, Size: o.Size, Adjust: o.Adjust},
+		Duration:    opts.Duration,
+		FPS:         opts.FPS,
+		Frames:      opts.Frames,
+	})
+}
+
 // ArmorBytes is Armor with each piece's texture encoded as PNG or JPEG; a
 // nil piece is not worn.
 type ArmorBytes struct {

@@ -22,7 +22,8 @@ with the same features in both.
   carry armor and items with them.
 - `Options.HideSkin` draws the equipment alone, so a helmet, the elytra or a
   held item renders by itself; `Texture` is then optional. `RenderItem` and
-  `RenderItemBytes` render an item sprite on its own.
+  `RenderItemBytes` render an item sprite on its own, and `RenderItemGIF`,
+  `RenderItemFrames` and `RenderItemGIFBytes` spin it.
 - Equipment moves with every pose and animation, and head and avatar views
   show only the helmet.
 - Fixed: one-pixel slivers along the edges of thin, edge-on faces, and a

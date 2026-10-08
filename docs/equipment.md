@@ -123,6 +123,10 @@ img, err := bedrockskin.RenderItem(bedrockskin.ItemOptions{
 
 `Camera` overrides `Angle`. `Adjust` turns and resizes the item about its centre; as the camera frames the item whatever its size or offset, only `Rotation` changes the picture.
 
+`RenderItemGIF` and `RenderItemFrames` spin it: one full turn about its upright axis each loop, as a dropped item turns, after its adjustment. `ItemAnimationOptions` adds `Duration` (seconds a turn, 3 by default), `FPS` (20) and `Frames` (one turn). The camera is fitted once around the whole turn, so the item turns in a still frame. `RenderItemGIFBytes` takes the sprite encoded.
+
+Held items and equipment rendered with `HideSkin` animate as anything on the model does: pass the options to `RenderGIF` or `RenderFrames` with any motion or animation.
+
 ## Order and framing
 
 A scene draws the body, any animated persona parts, the armor (helmet, chestplate, leggings, boots, elytra), the right hand's item, the left hand's, then the cape. The camera frames everything drawn, so equipment can widen the shot a little.

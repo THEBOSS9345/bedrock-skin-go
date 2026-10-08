@@ -273,6 +273,11 @@ func WriteGIF(w io.Writer, opts AnimationOptions) error {
 		return err
 	}
 	fps, _ := opts.timing()
+	return encodeGIF(w, frames, fps)
+}
+
+// encodeGIF writes frames as a looping GIF at fps frames a second.
+func encodeGIF(w io.Writer, frames []image.Image, fps int) error {
 	pal := gifPalette(frames)
 	delay := max(2, int(math.Round(100/float64(fps)))) // in hundredths of a second
 	anim := &gif.GIF{LoopCount: 0}

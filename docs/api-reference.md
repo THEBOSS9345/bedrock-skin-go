@@ -117,7 +117,7 @@ type ItemOptions struct {
 }
 ```
 
-An item on its own, extruded as a held item is. `RenderItemBytes(ItemBytesOptions)` is the same from encoded bytes, returning PNG bytes. See [equipment.md](equipment.md#an-item-on-its-own).
+An item on its own, extruded as a held item is. `RenderItemBytes(ItemBytesOptions)` is the same from encoded bytes, returning PNG bytes. `RenderItemGIF(ItemAnimationOptions)` and `RenderItemFrames` spin it, one turn a loop (`Duration`, `FPS`, `Frames`); `RenderItemGIFBytes` from encoded bytes. See [equipment.md](equipment.md#an-item-on-its-own).
 
 ### `type Scale`
 

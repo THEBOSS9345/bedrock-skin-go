@@ -1,6 +1,7 @@
 package bedrockskin
 
 import (
+	"bytes"
 	_ "embed"
 	"fmt"
 	"image"
@@ -263,28 +264,47 @@ type ItemOptions struct {
 // RenderItem renders an item on its own: the sprite extruded one texel deep,
 // as the game draws a held item, centred and framed by the camera.
 func RenderItem(opts ItemOptions) (image.Image, error) {
+	triangles, err := opts.triangles(0)
+	if err != nil {
+		return nil, err
+	}
+	fov, margin, yaw, pitch := opts.camera()
+	eye, center := cameraForYawPitch(triangles, fov, margin, yaw, pitch)
+	return rasterize([]layer{{triangles, opts.Item}}, eye, center, fov, opts.size()), nil
+}
+
+func (opts ItemOptions) size() int {
+	if opts.Size <= 0 {
+		return DefaultSize
+	}
+	return opts.Size
+}
+
+// triangles is the item turned spin degrees about its upright axis, after
+// its adjustment.
+func (opts ItemOptions) triangles(spin float64) ([]*fauxgl.Triangle, error) {
 	if opts.Item == nil {
 		return nil, ErrNoTexture
-	}
-	size := opts.Size
-	if size <= 0 {
-		size = DefaultSize
 	}
 	b := opts.Item.Bounds()
 	w, h := float64(b.Dx()), float64(b.Dy())
 	if w == 0 || h == 0 {
 		return nil, ErrEmptyView
 	}
-	// Item space centred on the origin, so the adjustment turns it about
-	// its middle; then into model units, X mirrored as a held item's is.
+	// Item space centred on the origin, so the adjustment and the spin turn
+	// it about its middle; then into model units, X mirrored as a held
+	// item's is.
 	t := 1 / max(w, h)
-	toModel := opts.Adjust.matrix().
+	toModel := rotationMatrix([]float64{0, spin, 0}).
+		Mul(opts.Adjust.matrix()).
 		Mul(scale(-16, 16, 16)).
 		Mul(translate(w*t/2, -h*t/2, t/2))
-	triangles := buildHeldItem(opts.Item, toModel, fauxgl.Identity())
+	return buildHeldItem(opts.Item, toModel, fauxgl.Identity()), nil
+}
 
-	fov, margin := 35.0, 1.2
-	var yaw, pitch float64
+// camera is the item's framing: the field of view, margin, yaw and pitch.
+func (opts ItemOptions) camera() (fov, margin, yaw, pitch float64) {
+	fov, margin = 35.0, 1.2
 	if opts.Camera != nil {
 		yaw, pitch = opts.Camera.Yaw, opts.Camera.Pitch
 		if opts.Camera.FOV > 0 {
@@ -303,8 +323,74 @@ func RenderItem(opts ItemOptions) (image.Image, error) {
 		}
 		yaw, pitch = angleToYawPitch(angle)
 	}
-	eye, center := cameraForYawPitch(triangles, fov, margin, yaw, pitch)
-	return rasterize([]layer{{triangles, opts.Item}}, eye, center, fov, size), nil
+	return fov, margin, yaw, pitch
+}
+
+// ItemAnimationOptions spins an item on its own: one full turn about its
+// upright axis each loop, as a dropped item turns. See
+// docs/equipment.md#an-item-on-its-own.
+type ItemAnimationOptions struct {
+	ItemOptions
+
+	// Duration is how long one turn takes, in seconds. Zero means 3.
+	Duration float64
+	// FPS is frames per second; zero means 20.
+	FPS int
+	// Frames is how many frames to render; zero means one turn.
+	Frames int
+}
+
+// RenderItemFrames renders the spinning item frame by frame. Every frame
+// shares one camera, fitted around the whole turn, so the item turns in a
+// still frame.
+func RenderItemFrames(opts ItemAnimationOptions) ([]image.Image, error) {
+	duration := opts.Duration
+	if duration <= 0 {
+		duration = 3
+	}
+	fps, frames := opts.FPS, opts.Frames
+	if fps <= 0 {
+		fps = 20
+	}
+	if frames <= 0 {
+		frames = max(1, int(math.Round(duration*float64(fps))))
+	}
+	turns := make([][]*fauxgl.Triangle, frames)
+	var sweep []*fauxgl.Triangle
+	for i := range turns {
+		spin := 360 * (float64(i) / float64(fps)) / duration
+		tris, err := opts.triangles(spin)
+		if err != nil {
+			return nil, err
+		}
+		turns[i] = tris
+		sweep = append(sweep, tris...)
+	}
+	fov, margin, yaw, pitch := opts.camera()
+	eye, center := cameraForYawPitch(sweep, fov, margin, yaw, pitch)
+	out := make([]image.Image, frames)
+	for i, tris := range turns {
+		out[i] = rasterize([]layer{{tris, opts.Item}}, eye, center, fov, opts.size())
+	}
+	return out, nil
+}
+
+// RenderItemGIF renders the spinning item as a looping animated GIF, as
+// RenderGIF encodes one.
+func RenderItemGIF(opts ItemAnimationOptions) ([]byte, error) {
+	frames, err := RenderItemFrames(opts)
+	if err != nil {
+		return nil, err
+	}
+	fps := opts.FPS
+	if fps <= 0 {
+		fps = 20
+	}
+	var buf bytes.Buffer
+	if err := encodeGIF(&buf, frames, fps); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // spriteItemTransform is the game's legacy item transform, applied before
