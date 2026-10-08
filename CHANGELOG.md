@@ -26,7 +26,9 @@ with the same features in both.
   `RenderItemFrames` and `RenderItemGIFBytes` spin it.
 - Equipment moves with every pose and animation, and head and avatar views
   show only the helmet.
-- Fixed: one-pixel slivers along the edges of thin, edge-on faces, and a
+- Fixed: speckles along every seam where boxes overlap - between the legs,
+  at the leggings' belt, between the boots - now drawn as the face drawn
+  first, and one-pixel slivers along the edges of thin, edge-on faces, and a
   gap down the diagonal of a face larger than the image, both inherited
   from fauxgl's rasterizer; pixels off the image's side wrapping into the
   next row; and every cube's bottom face mapped the wrong way round. Every

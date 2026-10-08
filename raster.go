@@ -16,10 +16,12 @@ import (
 // pixel - position, normal, colour, clip position - calls the shader through
 // an interface, and takes a mutex per pixel for its parallel mode. This one
 // interpolates the texture coordinate alone and has no locks, which made a
-// head render three times faster. It departs from fauxgl in two places,
+// head render three times faster. It departs from fauxgl in three places,
 // each fixing a visible defect: edge functions are evaluated exactly per
-// pixel rather than stepped, and only the near and far planes clip. See
-// docs/design-decisions.md#why-edges-are-not-stepped. Everything else is
+// pixel rather than stepped, only the near and far planes clip (see
+// docs/design-decisions.md#why-edges-are-not-stepped), and a depth tie goes
+// to the face drawn first (see
+// docs/design-decisions.md#why-depth-ties-go-to-the-first-face). Everything else is
 // fauxgl's arithmetic in fauxgl's order; the vertex stage and near/far
 // clipping still run through fauxgl. See
 // docs/design-decisions.md#why-the-rasterizer-is-specialised.
@@ -86,6 +88,12 @@ func (r *raster) drawClipped(v0, v1, v2 fauxgl.Vertex, tex *fastImageTexture) {
 	r.rasterize(v0, v1, v2, s0, s1, s2, tex)
 }
 
+// depthTie is how much nearer, in screen depth (0 near to 1 far), a
+// fragment must be to replace what is drawn. Coplanar faces differ by
+// rounding, around 1e-14; the closest real layers - a chestplate 0.01 units
+// out from the body underneath - by over 1e-7 even framed from far off.
+const depthTie = 1e-10
+
 func screenEdge(a, b, c fauxgl.Vector) float64 {
 	return (b.X-c.X)*(a.Y-c.Y) - (b.Y-c.Y)*(a.X-c.X)
 }
@@ -141,9 +149,13 @@ func (r *raster) rasterize(v0, v1, v2 fauxgl.Vertex, s0, s1, s2 fauxgl.Vector, t
 			if c[3] < 128 {
 				continue
 			}
-			// Written as fauxgl writes it, not as bz > depth: a NaN depth
-			// passes the early test above and must fail this one.
-			if !(bz <= r.depth[i]) {
+			// A fragment must be nearer than what is there by more than
+			// depthTie: faces that only rounding sets apart - two boxes'
+			// coplanar faces where they overlap - leave the pixel to the one
+			// drawn first, every pixel alike, rather than speckling. Written
+			// as a negation so a NaN depth, which passes the early test
+			// above, fails this one. See docs/design-decisions.md#why-depth-ties-go-to-the-first-face.
+			if !(bz < r.depth[i]-depthTie) {
 				continue
 			}
 			r.depth[i] = z
