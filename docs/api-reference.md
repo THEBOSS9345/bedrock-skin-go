@@ -196,6 +196,7 @@ type BytesOptions struct {
 	Armor      ArmorBytes             // each piece encoded; ArmorSetBytes(layer1, layer2) for a set
 	RightHand  HeldBytes              // Held with the item encoded
 	LeftHand   HeldBytes
+	Scale      Scale
 	Identifier string
 	View       View
 	Angle      Angle

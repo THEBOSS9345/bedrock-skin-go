@@ -317,20 +317,25 @@ func TestBytesOptionsCarryEquipment(t *testing.T) {
 	}
 	tex, armor, item := testTexture(), testArmorTexture(), testItemTexture()
 	adjust := ItemAdjust{Offset: [3]float64{0, 1, 0}, Rotation: [3]float64{10, 0, 0}, Scale: 1.2}
+	winged := ArmorSet(armor, armor)
+	winged.Elytra = tex
+	scale := Scale{Model: 1.2, Parts: map[string]float64{"head": 1.3}}
 	want, err := EncodePNG(renderOrFail(t, Options{
 		Texture: tex, Size: 64,
-		Armor:     ArmorSet(armor, armor),
+		Armor:     winged,
 		RightHand: Held{Item: item, Adjust: adjust},
 		LeftHand:  Held{Item: item, Flat: true},
+		Scale:     scale,
 	}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	got, err := RenderBytes(BytesOptions{
 		Texture: enc(tex), Size: 64,
-		Armor:     ArmorSetBytes(enc(armor), enc(armor)),
+		Armor:     ArmorBytes{Helmet: enc(armor), Chestplate: enc(armor), Leggings: enc(armor), Boots: enc(armor), Elytra: enc(tex)},
 		RightHand: HeldBytes{Item: enc(item), Adjust: adjust},
 		LeftHand:  HeldBytes{Item: enc(item), Flat: true},
+		Scale:     scale,
 	})
 	if err != nil {
 		t.Fatal(err)

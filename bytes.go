@@ -48,6 +48,8 @@ type BytesOptions struct {
 	Parts      []string
 	Camera     *Camera
 	Size       int
+	// Scale is Options.Scale.
+	Scale Scale
 }
 
 // RenderBytes renders from encoded bytes and returns encoded PNG bytes.
@@ -104,6 +106,7 @@ type ArmorBytes struct {
 	Chestplate []byte
 	Leggings   []byte
 	Boots      []byte
+	Elytra     []byte
 }
 
 // ArmorSetBytes is ArmorSet for encoded textures.
@@ -114,9 +117,9 @@ func ArmorSetBytes(layer1, layer2 []byte) ArmorBytes {
 // decode decodes every worn piece. A set shares one texture between
 // several pieces, so each distinct encoding is decoded once.
 func (a ArmorBytes) decode() (Armor, error) {
-	names := [4]string{"helmet", "chestplate", "leggings", "boots"}
-	raw := [4][]byte{a.Helmet, a.Chestplate, a.Leggings, a.Boots}
-	var out [4]image.Image
+	names := [5]string{"helmet", "chestplate", "leggings", "boots", "elytra"}
+	raw := [5][]byte{a.Helmet, a.Chestplate, a.Leggings, a.Boots, a.Elytra}
+	var out [5]image.Image
 	for i, b := range raw {
 		if len(b) == 0 {
 			continue
@@ -136,7 +139,7 @@ func (a ArmorBytes) decode() (Armor, error) {
 		}
 		out[i] = img
 	}
-	return Armor{Helmet: out[0], Chestplate: out[1], Leggings: out[2], Boots: out[3]}, nil
+	return Armor{Helmet: out[0], Chestplate: out[1], Leggings: out[2], Boots: out[3], Elytra: out[4]}, nil
 }
 
 // decode turns encoded options into Options: every image decoded, the
@@ -200,6 +203,7 @@ func (opts BytesOptions) decode() (Options, error) {
 		Size:       opts.Size,
 		Animated:   animated,
 		Armor:      armor,
+		Scale:      opts.Scale,
 		RightHand:  right,
 		LeftHand:   left,
 	}, nil
