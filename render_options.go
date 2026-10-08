@@ -110,6 +110,12 @@ type Options struct {
 	// Scale resizes the figure or any bone. The zero value changes
 	// nothing. See docs/equipment.md#scale.
 	Scale Scale
+	// HideSkin draws the equipment alone - armor, elytra, held items and
+	// cape - posed and framed as it would be on the skin, so any piece can
+	// be rendered by itself; Parts and View pick which. Texture may then be
+	// nil. ErrEmptyView or ErrNoMatchingParts means no equipment was left
+	// to draw. See docs/equipment.md#equipment-on-its-own.
+	HideSkin bool
 }
 
 // AnimatedType is the kind of a skin animation, numbered as the Bedrock
@@ -235,7 +241,7 @@ func (sc scene) framing() []*fauxgl.Triangle {
 }
 
 func (opts Options) scene(pose Pose) (scene, error) {
-	if opts.Texture == nil {
+	if opts.Texture == nil && !opts.HideSkin {
 		return scene{}, ErrNoTexture
 	}
 
@@ -280,7 +286,7 @@ func (opts Options) scene(pose Pose) (scene, error) {
 	// No cubes and no poly mesh anywhere: bones with nothing to draw. A
 	// flat texture crop is the only output left. See
 	// docs/design-decisions.md#why-persona-skins-fall-back-to-2d.
-	if !geo.HasMesh() {
+	if !geo.HasMesh() && !opts.HideSkin {
 		return scene{flat: Render2D(opts.Texture, view, size)}, nil
 	}
 
@@ -298,27 +304,33 @@ func (opts Options) scene(pose Pose) (scene, error) {
 		}
 		return includeForView(g, view)
 	}
-	triangles = buildTriangles(geo, include(geo), pose)
-	layers := []layer{{triangles, opts.Texture}}
-	drawn := len(triangles)
-	for _, a := range opts.Animated {
-		if a.Texture == nil {
-			continue
-		}
-		if g, ok := animatedEntry(geos, a.Type); ok && g.Identifier != geo.Identifier {
-			tris := buildTriangles(g, include(g), pose)
-			layers = append(layers, layer{tris, a.Texture})
-			drawn += len(tris)
-		}
-	}
-	if drawn == 0 {
+	var layers []layer
+	empty := func() error {
 		if len(opts.Parts) > 0 {
-			return scene{}, ErrNoMatchingParts
+			return ErrNoMatchingParts
 		}
-		return scene{}, ErrEmptyView
+		return ErrEmptyView
 	}
-	// Equipment never decides whether the view has anything in it: that is
-	// the skin's to answer, above.
+	if !opts.HideSkin {
+		triangles = buildTriangles(geo, include(geo), pose)
+		layers = append(layers, layer{triangles, opts.Texture})
+		drawn := len(triangles)
+		for _, a := range opts.Animated {
+			if a.Texture == nil {
+				continue
+			}
+			if g, ok := animatedEntry(geos, a.Type); ok && g.Identifier != geo.Identifier {
+				tris := buildTriangles(g, include(g), pose)
+				layers = append(layers, layer{tris, a.Texture})
+				drawn += len(tris)
+			}
+		}
+		// With the skin drawn, equipment never decides whether the view has
+		// anything in it: that is the skin's to answer.
+		if drawn == 0 {
+			return scene{}, empty()
+		}
+	}
 	for i, tex := range opts.Armor.textures() {
 		if tex == nil {
 			continue
@@ -382,6 +394,15 @@ func (opts Options) scene(pose Pose) (scene, error) {
 
 	if opts.Cape != nil && len(capeTriangles) > 0 {
 		layers = append(layers, layer{capeTriangles, opts.Cape})
+	}
+	if opts.HideSkin {
+		drawn := 0
+		for _, l := range layers {
+			drawn += len(l.triangles)
+		}
+		if drawn == 0 {
+			return scene{}, empty()
+		}
 	}
 	return scene{layers: layers, fov: fov, margin: margin, yaw: yaw, pitch: pitch, size: size}, nil
 }

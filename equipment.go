@@ -225,16 +225,86 @@ func (h Held) toModel(side hand) fauxgl.Matrix {
 	if h.Flat {
 		display = side.flat
 	}
-	k := h.Adjust.Scale
+	return h.Adjust.matrix().Mul(scale(-16, 16, 16)).Mul(display)
+}
+
+// matrix is the adjustment as a transform about the origin: scale, then
+// rotation, then offset.
+func (a ItemAdjust) matrix() fauxgl.Matrix {
+	k := a.Scale
 	if k == 0 {
 		k = 1
 	}
-	a := h.Adjust
 	return translate(a.Offset[0], a.Offset[1], a.Offset[2]).
 		Mul(rotationMatrix(a.Rotation[:])).
-		Mul(scale(k, k, k)).
+		Mul(scale(k, k, k))
+}
+
+// ItemOptions describes a render of one item on its own, extruded as a held
+// item is. Only Item is required. See docs/equipment.md#an-item-on-its-own.
+type ItemOptions struct {
+	// Item is the item's sprite, e.g. textures/items/diamond_sword.png.
+	Item image.Image
+	// Angle picks the camera preset: AngleFront faces the sprite, as an
+	// inventory icon; AngleIso turns it to show its depth. Zero means
+	// AngleFront. Ignored when Camera is set.
+	Angle Angle
+	// Camera overrides Angle with an explicit position.
+	Camera *Camera
+	// Size is the output edge length; the image is square. Zero means
+	// DefaultSize.
+	Size int
+	// Adjust turns and resizes the item about its centre. The camera frames
+	// the item whatever its size or offset, so Scale and Offset change only
+	// its shape against other parts, not how big it looks.
+	Adjust ItemAdjust
+}
+
+// RenderItem renders an item on its own: the sprite extruded one texel deep,
+// as the game draws a held item, centred and framed by the camera.
+func RenderItem(opts ItemOptions) (image.Image, error) {
+	if opts.Item == nil {
+		return nil, ErrNoTexture
+	}
+	size := opts.Size
+	if size <= 0 {
+		size = DefaultSize
+	}
+	b := opts.Item.Bounds()
+	w, h := float64(b.Dx()), float64(b.Dy())
+	if w == 0 || h == 0 {
+		return nil, ErrEmptyView
+	}
+	// Item space centred on the origin, so the adjustment turns it about
+	// its middle; then into model units, X mirrored as a held item's is.
+	t := 1 / max(w, h)
+	toModel := opts.Adjust.matrix().
 		Mul(scale(-16, 16, 16)).
-		Mul(display)
+		Mul(translate(w*t/2, -h*t/2, t/2))
+	triangles := buildHeldItem(opts.Item, toModel, fauxgl.Identity())
+
+	fov, margin := 35.0, 1.2
+	var yaw, pitch float64
+	if opts.Camera != nil {
+		yaw, pitch = opts.Camera.Yaw, opts.Camera.Pitch
+		if opts.Camera.FOV > 0 {
+			fov = opts.Camera.FOV
+		}
+		if opts.Camera.Margin > 0 {
+			margin = opts.Camera.Margin
+		}
+	} else {
+		angle := opts.Angle
+		if angle == "" {
+			angle = AngleFront
+		}
+		if angle == AngleIso {
+			margin *= 1.25
+		}
+		yaw, pitch = angleToYawPitch(angle)
+	}
+	eye, center := cameraForYawPitch(triangles, fov, margin, yaw, pitch)
+	return rasterize([]layer{{triangles, opts.Item}}, eye, center, fov, size), nil
 }
 
 // spriteItemTransform is the game's legacy item transform, applied before

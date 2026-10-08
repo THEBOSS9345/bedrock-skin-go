@@ -94,6 +94,35 @@ It works in the hand's frame, about the grip, so the item still follows the arm 
 
 A held item's own size is `ItemAdjust.Scale`.
 
+## Equipment on its own
+
+`Options.HideSkin` draws the equipment without the skin: armor, elytra, held items and cape, posed and framed exactly as they would be on the player. `Texture` may then be nil (empty in `BytesOptions`). It combines with everything else, so any piece can be rendered by itself:
+
+| To render | Options |
+| --- | --- |
+| a full armor set | `HideSkin`, `Armor` |
+| the elytra | `HideSkin`, `Armor{Elytra: ...}` |
+| a helmet | `HideSkin`, `Armor`, `View: ViewHead` |
+| an item where the hand holds it | `HideSkin`, `RightHand` |
+| one arm with its armor and item | `Parts: []string{"rightArm"}` (with or without the skin) |
+| a body part on its own | `Parts`, with the skin |
+
+`Scale`, poses and animations all apply as usual. With the skin hidden, `ErrEmptyView` (or `ErrNoMatchingParts` with `Parts`) means there was no equipment left to draw.
+
+## An item on its own
+
+`RenderItem` renders an item sprite by itself, extruded as a held item is, centred and framed by the camera, with no model at all. `RenderItemBytes` takes and returns encoded bytes.
+
+```go
+img, err := bedrockskin.RenderItem(bedrockskin.ItemOptions{
+	Item:  sword,
+	Angle: bedrockskin.AngleIso, // AngleFront (the default) faces the sprite
+	Size:  256,
+})
+```
+
+`Camera` overrides `Angle`. `Adjust` turns and resizes the item about its centre; as the camera frames the item whatever its size or offset, only `Rotation` changes the picture.
+
 ## Order and framing
 
 A scene draws the body, any animated persona parts, the armor (helmet, chestplate, leggings, boots, elytra), the right hand's item, the left hand's, then the cape. The camera frames everything drawn, so equipment can widen the shot a little.

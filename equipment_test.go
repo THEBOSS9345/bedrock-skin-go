@@ -2,6 +2,7 @@ package bedrockskin
 
 import (
 	"bytes"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -381,4 +382,97 @@ func floatsEqual(a, b []float64) bool {
 		}
 	}
 	return true
+}
+
+func TestHideSkinDrawsTheEquipmentAlone(t *testing.T) {
+	armor, item := testArmorTexture(), testItemTexture()
+	full := Options{Armor: ArmorSet(armor, armor), RightHand: Held{Item: item}, Size: 64, HideSkin: true}
+	alone := renderOrFail(t, full)
+	full.Texture = testTexture()
+	if !imagesEqual(alone, renderOrFail(t, full)) {
+		t.Fatal("HideSkin still drew the skin")
+	}
+	full.HideSkin = false
+	if imagesEqual(alone, renderOrFail(t, full)) {
+		t.Fatal("the skin made no difference without HideSkin")
+	}
+}
+
+func TestHideSkinWithNothingToDraw(t *testing.T) {
+	if _, err := Render(Options{HideSkin: true}); !errors.Is(err, ErrEmptyView) {
+		t.Fatalf("no equipment: got %v, want ErrEmptyView", err)
+	}
+	opts := Options{HideSkin: true, Armor: Armor{Boots: testArmorTexture()}, View: ViewHead}
+	if _, err := Render(opts); !errors.Is(err, ErrEmptyView) {
+		t.Fatalf("boots in a head view: got %v, want ErrEmptyView", err)
+	}
+	opts.View, opts.Parts = "", []string{"head"}
+	if _, err := Render(opts); !errors.Is(err, ErrNoMatchingParts) {
+		t.Fatalf("boots with only the head: got %v, want ErrNoMatchingParts", err)
+	}
+	if _, err := Render(Options{}); !errors.Is(err, ErrNoTexture) {
+		t.Fatalf("no texture without HideSkin: got %v, want ErrNoTexture", err)
+	}
+}
+
+func TestHideSkinFromBytes(t *testing.T) {
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, testArmorTexture()); err != nil {
+		t.Fatal(err)
+	}
+	got, err := RenderBytes(BytesOptions{HideSkin: true, Armor: ArmorBytes{Helmet: buf.Bytes()}, Size: 32})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, _ := EncodePNG(renderOrFail(t, Options{HideSkin: true, Armor: Armor{Helmet: testArmorTexture()}, Size: 32}))
+	if !bytes.Equal(got, want) {
+		t.Fatal("RenderBytes with HideSkin differs from Render")
+	}
+}
+
+func TestRenderItem(t *testing.T) {
+	item := testItemTexture()
+	front, err := RenderItem(ItemOptions{Item: item, Size: 64})
+	if err != nil {
+		t.Fatal(err)
+	}
+	iso, _ := RenderItem(ItemOptions{Item: item, Angle: AngleIso, Size: 64})
+	turned, _ := RenderItem(ItemOptions{Item: item, Size: 64, Adjust: ItemAdjust{Rotation: [3]float64{0, 0, 45}}})
+	if imagesEqual(front, iso) || imagesEqual(front, turned) {
+		t.Fatal("the angle or the adjustment made no difference")
+	}
+	// Face on, the sprite reads the right way round: its tip, at the
+	// top-right of the texture, is drawn top-right.
+	b := front.Bounds()
+	left, right := 0, 0
+	for y := b.Min.Y; y < b.Min.Y+b.Dy()/3; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			if _, _, _, a := front.At(x, y).RGBA(); a != 0 {
+				if x < b.Dx()/2 {
+					left++
+				} else {
+					right++
+				}
+			}
+		}
+	}
+	if right <= left {
+		t.Fatalf("the tip is drawn on the left (%d left, %d right): the item is mirrored", left, right)
+	}
+	if _, err := RenderItem(ItemOptions{}); !errors.Is(err, ErrNoTexture) {
+		t.Fatalf("no item: got %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, item); err != nil {
+		t.Fatal(err)
+	}
+	got, err := RenderItemBytes(ItemBytesOptions{Item: buf.Bytes(), Size: 64})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, _ := EncodePNG(front)
+	if !bytes.Equal(got, want) {
+		t.Fatal("RenderItemBytes differs from RenderItem")
+	}
 }

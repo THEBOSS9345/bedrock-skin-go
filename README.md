@@ -181,7 +181,9 @@ img, err := bedrockskin.Render(bedrockskin.Options{
 })
 ```
 
-Pieces mix freely (`Armor{Helmet: gold1, Boots: iron1}`), and equipment moves with every animation. Items sit where the game puts them; for one that does not suit, `Held.Adjust` moves, turns or resizes it. `Options.Scale` resizes the whole figure or any part of it. See [docs/equipment.md](docs/equipment.md).
+Pieces mix freely (`Armor{Helmet: gold1, Boots: iron1}`), and equipment moves with every animation. Items sit where the game puts them; for one that does not suit, `Held.Adjust` moves, turns or resizes it. `Options.Scale` resizes the whole figure or any part of it.
+
+Any of it renders on its own too: `Options.HideSkin` draws the equipment without the skin - the elytra alone, a helmet with `View: ViewHead` - and `RenderItem` draws an item by itself. See [docs/equipment.md](docs/equipment.md).
 
 ## Animation
 

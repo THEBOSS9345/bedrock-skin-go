@@ -53,6 +53,7 @@ type Options struct {
 	RightHand  Held
 	LeftHand   Held
 	Scale      Scale
+	HideSkin   bool
 }
 ```
 
@@ -70,6 +71,7 @@ type Options struct {
 | `Armor` | No armor. One texture per piece, the elytra included; see [equipment.md](equipment.md). |
 | `RightHand`, `LeftHand` | Nothing held. An item in each hand, placed as the game places it; see [equipment.md](equipment.md#held-items). |
 | `Scale` | Unchanged. The figure's size in the image and per-bone scales; see [equipment.md](equipment.md#scale). |
+| `HideSkin` | The skin is drawn. True draws the equipment alone, and `Texture` may be nil; see [equipment.md](equipment.md#equipment-on-its-own). |
 
 ### `type Armor` and `func ArmorSet(layer1, layer2 image.Image) Armor`
 
@@ -102,6 +104,20 @@ type ItemAdjust struct {
 ```
 
 See [equipment.md](equipment.md#adjusting-an-item).
+
+### `func RenderItem(opts ItemOptions) (image.Image, error)`
+
+```go
+type ItemOptions struct {
+	Item   image.Image // required
+	Angle  Angle       // AngleFront (default) or AngleIso
+	Camera *Camera
+	Size   int
+	Adjust ItemAdjust  // turns it about its centre
+}
+```
+
+An item on its own, extruded as a held item is. `RenderItemBytes(ItemBytesOptions)` is the same from encoded bytes, returning PNG bytes. See [equipment.md](equipment.md#an-item-on-its-own).
 
 ### `type Scale`
 

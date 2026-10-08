@@ -48,8 +48,10 @@ type BytesOptions struct {
 	Parts      []string
 	Camera     *Camera
 	Size       int
-	// Scale is Options.Scale.
-	Scale Scale
+	// Scale and HideSkin are Options' fields. With HideSkin, Texture may be
+	// empty.
+	Scale    Scale
+	HideSkin bool
 }
 
 // RenderBytes renders from encoded bytes and returns encoded PNG bytes.
@@ -99,6 +101,33 @@ func (h HeldBytes) decode(name string) (Held, error) {
 	return Held{Item: img, Flat: h.Flat, Adjust: h.Adjust}, nil
 }
 
+// ItemBytesOptions is ItemOptions with the item's sprite an encoded PNG or
+// JPEG.
+type ItemBytesOptions struct {
+	Item   []byte
+	Angle  Angle
+	Camera *Camera
+	Size   int
+	Adjust ItemAdjust
+}
+
+// RenderItemBytes renders an item on its own from encoded bytes and returns
+// PNG bytes: RenderItem with decoding and encoding folded in.
+func RenderItemBytes(opts ItemBytesOptions) ([]byte, error) {
+	if len(opts.Item) == 0 {
+		return nil, ErrNoTexture
+	}
+	item, err := DecodeImage(opts.Item)
+	if err != nil {
+		return nil, fmt.Errorf("item: %w", err)
+	}
+	img, err := RenderItem(ItemOptions{Item: item, Angle: opts.Angle, Camera: opts.Camera, Size: opts.Size, Adjust: opts.Adjust})
+	if err != nil {
+		return nil, err
+	}
+	return EncodePNG(img)
+}
+
 // ArmorBytes is Armor with each piece's texture encoded as PNG or JPEG; a
 // nil piece is not worn.
 type ArmorBytes struct {
@@ -145,13 +174,16 @@ func (a ArmorBytes) decode() (Armor, error) {
 // decode turns encoded options into Options: every image decoded, the
 // geometry parsed.
 func (opts BytesOptions) decode() (Options, error) {
-	if len(opts.Texture) == 0 {
+	if len(opts.Texture) == 0 && !opts.HideSkin {
 		return Options{}, ErrNoTexture
 	}
 
-	texture, err := DecodeImage(opts.Texture)
-	if err != nil {
-		return Options{}, fmt.Errorf("texture: %w", err)
+	var texture image.Image
+	var err error
+	if len(opts.Texture) > 0 {
+		if texture, err = DecodeImage(opts.Texture); err != nil {
+			return Options{}, fmt.Errorf("texture: %w", err)
+		}
 	}
 
 	var geos []Geometry
@@ -204,6 +236,7 @@ func (opts BytesOptions) decode() (Options, error) {
 		Animated:   animated,
 		Armor:      armor,
 		Scale:      opts.Scale,
+		HideSkin:   opts.HideSkin,
 		RightHand:  right,
 		LeftHand:   left,
 	}, nil
