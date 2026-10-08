@@ -3,7 +3,7 @@
 Versions match bedrock-skin-rs: the same version renders the same images
 with the same features in both.
 
-## v0.3.0
+## v0.2.3
 
 - Armor: `Options.Armor` wears a helmet, chestplate, leggings and boots, one
   texture per piece as a resource pack lays them out, on vanilla's armor
