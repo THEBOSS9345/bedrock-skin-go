@@ -49,6 +49,8 @@ type Options struct {
 	Parts      []string
 	Camera     *Camera
 	Size       int
+	Armor      Armor
+	HeldItem   image.Image
 }
 ```
 
@@ -63,6 +65,21 @@ type Options struct {
 | `Parts` | Uses `View` instead. |
 | `Camera` | Uses `View`/`Angle` presets. |
 | `Size` | `DefaultSize` (512). Output is always square. |
+| `Armor` | No armor. One texture per piece; see [equipment.md](equipment.md). |
+| `HeldItem` | Nothing held. An item sprite drawn extruded in the right hand; see [equipment.md](equipment.md#held-items). |
+
+### `type Armor` and `func ArmorSet(layer1, layer2 image.Image) Armor`
+
+```go
+type Armor struct {
+	Helmet     image.Image // layer 1
+	Chestplate image.Image // layer 1
+	Leggings   image.Image // layer 2
+	Boots      image.Image // layer 1
+}
+```
+
+A nil piece is not worn. `ArmorSet` wears all four pieces of one material. See [equipment.md](equipment.md).
 
 ### `type Camera`
 
@@ -143,6 +160,8 @@ type BytesOptions struct {
 	Geometry   []byte // raw geometry.json. Nil, empty or "null" uses the default.
 	Cape       []byte // encoded PNG/JPEG.
 	Animated   []AnimatedTextureBytes // a persona's animation images, encoded: {Type, Texture []byte}
+	Armor      ArmorBytes             // each piece encoded; ArmorSetBytes(layer1, layer2) for a set
+	HeldItem   []byte                 // encoded PNG/JPEG item sprite
 	Identifier string
 	View       View
 	Angle      Angle

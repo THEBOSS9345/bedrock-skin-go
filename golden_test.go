@@ -51,6 +51,18 @@ func goldenCases() map[string]Options {
 			Parts:   []string{"head", "leftArm"},
 			Size:    96,
 		},
+		"armor-iso": {
+			Texture: tex,
+			Angle:   AngleIso,
+			Armor:   ArmorSet(testArmorTexture(), testArmorTexture()),
+			Size:    96,
+		},
+		"held-item": {
+			Texture:  tex,
+			Camera:   &Camera{Yaw: -60, Pitch: 10},
+			HeldItem: testItemTexture(),
+			Size:     96,
+		},
 		"camera-explicit": {
 			Texture: tex,
 			Camera:  &Camera{Yaw: 200, Pitch: -15, FOV: 50, Margin: 1.2},

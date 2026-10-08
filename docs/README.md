@@ -15,6 +15,7 @@ Start with whichever matches what you are doing:
 | Understand how a mesh becomes pixels | [rendering-pipeline.md](rendering-pipeline.md) |
 | Understand framing, bone scoping, cameras | [views-and-cameras.md](views-and-cameras.md) |
 | Animate a skin: built-in motions, Blockbench animation files | [animation.md](animation.md) |
+| Dress a skin in armor or put an item in its hand | [equipment.md](equipment.md) |
 | Know why a Minecraft animation does nothing on a model | [animation.md](animation.md#which-minecraft-animations-work) |
 | Know *why* something is done a particular way | [design-decisions.md](design-decisions.md) |
 

@@ -99,6 +99,15 @@ type Options struct {
 	// for it alongside the main one; a persona skin's head lives only in its
 	// face entry. See docs/geometry-format.md#persona-skins.
 	Animated []AnimatedTexture
+
+	// Armor is the armor worn over the skin. The zero value wears none.
+	// See docs/equipment.md.
+	Armor Armor
+	// HeldItem is an item sprite held in the right hand, e.g.
+	// textures/items/diamond_sword.png, drawn extruded as the game draws
+	// it. Nil holds nothing; nor does geometry with no right arm. See
+	// docs/equipment.md#held-items.
+	HeldItem image.Image
 }
 
 // AnimatedType is the kind of a skin animation, numbered as the Bedrock
@@ -204,7 +213,8 @@ type scene struct {
 }
 
 // layer is triangles drawn with one texture. A scene draws its layers in
-// order: the body, any animated persona parts, then the cape.
+// order: the body, any animated persona parts, the armor, the held item,
+// then the cape.
 type layer struct {
 	triangles []*fauxgl.Triangle
 	texture   image.Image
@@ -285,6 +295,20 @@ func (opts Options) scene(pose Pose) (scene, error) {
 			return scene{}, ErrNoMatchingParts
 		}
 		return scene{}, ErrEmptyView
+	}
+	// Equipment never decides whether the view has anything in it: that is
+	// the skin's to answer, above.
+	for i, tex := range opts.Armor.textures() {
+		if tex == nil {
+			continue
+		}
+		g := armorGeometry[armorPieces[i]]
+		layers = append(layers, layer{buildTriangles(g, include(g), pose), tex})
+	}
+	if opts.HeldItem != nil {
+		if g, ok := heldItemGeometry(geo, opts.HeldItem); ok {
+			layers = append(layers, layer{buildTriangles(g, include(g), pose), opts.HeldItem})
+		}
 	}
 	if len(opts.Parts) == 0 {
 		fov, margin = framingFor(view)

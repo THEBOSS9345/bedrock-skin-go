@@ -3,6 +3,18 @@
 Versions match bedrock-skin-rs: the same version renders the same images
 with the same features in both.
 
+## v0.3.0
+
+- Armor: `Options.Armor` wears a helmet, chestplate, leggings and boots, one
+  texture per piece as a resource pack lays them out, on vanilla's armor
+  model. `ArmorSet(layer1, layer2)` wears a full set; `BytesOptions.Armor`
+  takes them encoded (`ArmorBytes`, `ArmorSetBytes`).
+- Held items: `Options.HeldItem` puts an item sprite in the right hand,
+  extruded one pixel deep as the game draws it, gripped at the model's
+  `rightItem`. `BytesOptions.HeldItem` takes it encoded.
+- Both move with every pose and animation, and head and avatar views show
+  only the helmet. Renders without them are unchanged.
+
 ## v0.2.2
 
 - Fixed: poses now find bones case-insensitively both ways. The built-in

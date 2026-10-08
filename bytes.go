@@ -36,6 +36,10 @@ type BytesOptions struct {
 	// Animated holds a persona skin's animation images, encoded; see
 	// Options.Animated.
 	Animated []AnimatedTextureBytes
+	// Armor is Options.Armor with each piece's texture encoded.
+	Armor ArmorBytes
+	// HeldItem is an encoded PNG or JPEG item sprite, or nil.
+	HeldItem []byte
 
 	Identifier string
 	View       View
@@ -73,6 +77,48 @@ type AnimatedTextureBytes struct {
 	Texture []byte // an encoded PNG or JPEG
 }
 
+// ArmorBytes is Armor with each piece's texture encoded as PNG or JPEG; a
+// nil piece is not worn.
+type ArmorBytes struct {
+	Helmet     []byte
+	Chestplate []byte
+	Leggings   []byte
+	Boots      []byte
+}
+
+// ArmorSetBytes is ArmorSet for encoded textures.
+func ArmorSetBytes(layer1, layer2 []byte) ArmorBytes {
+	return ArmorBytes{Helmet: layer1, Chestplate: layer1, Leggings: layer2, Boots: layer1}
+}
+
+// decode decodes every worn piece. A set shares one texture between
+// several pieces, so each distinct encoding is decoded once.
+func (a ArmorBytes) decode() (Armor, error) {
+	names := [4]string{"helmet", "chestplate", "leggings", "boots"}
+	raw := [4][]byte{a.Helmet, a.Chestplate, a.Leggings, a.Boots}
+	var out [4]image.Image
+	for i, b := range raw {
+		if len(b) == 0 {
+			continue
+		}
+		for j := 0; j < i; j++ {
+			if out[j] != nil && bytes.Equal(raw[j], b) {
+				out[i] = out[j]
+				break
+			}
+		}
+		if out[i] != nil {
+			continue
+		}
+		img, err := DecodeImage(b)
+		if err != nil {
+			return Armor{}, fmt.Errorf("armor %s: %w", names[i], err)
+		}
+		out[i] = img
+	}
+	return Armor{Helmet: out[0], Chestplate: out[1], Leggings: out[2], Boots: out[3]}, nil
+}
+
 // decode turns encoded options into Options: every image decoded, the
 // geometry parsed.
 func (opts BytesOptions) decode() (Options, error) {
@@ -108,6 +154,18 @@ func (opts BytesOptions) decode() (Options, error) {
 		animated = append(animated, AnimatedTexture{Type: a.Type, Texture: img})
 	}
 
+	armor, err := opts.Armor.decode()
+	if err != nil {
+		return Options{}, err
+	}
+
+	var held image.Image
+	if len(opts.HeldItem) > 0 {
+		if held, err = DecodeImage(opts.HeldItem); err != nil {
+			return Options{}, fmt.Errorf("held item: %w", err)
+		}
+	}
+
 	return Options{
 		Texture:    texture,
 		Geometry:   geos,
@@ -119,6 +177,8 @@ func (opts BytesOptions) decode() (Options, error) {
 		Camera:     opts.Camera,
 		Size:       opts.Size,
 		Animated:   animated,
+		Armor:      armor,
+		HeldItem:   held,
 	}, nil
 }
 
