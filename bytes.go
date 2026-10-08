@@ -38,8 +38,9 @@ type BytesOptions struct {
 	Animated []AnimatedTextureBytes
 	// Armor is Options.Armor with each piece's texture encoded.
 	Armor ArmorBytes
-	// HeldItem is an encoded PNG or JPEG item sprite, or nil.
-	HeldItem []byte
+	// RightHand and LeftHand are Options' hands with the item encoded.
+	RightHand HeldBytes
+	LeftHand  HeldBytes
 
 	Identifier string
 	View       View
@@ -75,6 +76,25 @@ func RenderBytes(opts BytesOptions) ([]byte, error) {
 type AnimatedTextureBytes struct {
 	Type    AnimatedType
 	Texture []byte // an encoded PNG or JPEG
+}
+
+// HeldBytes is Held with the item's sprite an encoded PNG or JPEG; nil
+// holds nothing.
+type HeldBytes struct {
+	Item   []byte
+	Flat   bool
+	Adjust ItemAdjust
+}
+
+func (h HeldBytes) decode(name string) (Held, error) {
+	if len(h.Item) == 0 {
+		return Held{}, nil
+	}
+	img, err := DecodeImage(h.Item)
+	if err != nil {
+		return Held{}, fmt.Errorf("%s item: %w", name, err)
+	}
+	return Held{Item: img, Flat: h.Flat, Adjust: h.Adjust}, nil
 }
 
 // ArmorBytes is Armor with each piece's texture encoded as PNG or JPEG; a
@@ -159,11 +179,13 @@ func (opts BytesOptions) decode() (Options, error) {
 		return Options{}, err
 	}
 
-	var held image.Image
-	if len(opts.HeldItem) > 0 {
-		if held, err = DecodeImage(opts.HeldItem); err != nil {
-			return Options{}, fmt.Errorf("held item: %w", err)
-		}
+	right, err := opts.RightHand.decode("right hand")
+	if err != nil {
+		return Options{}, err
+	}
+	left, err := opts.LeftHand.decode("left hand")
+	if err != nil {
+		return Options{}, err
 	}
 
 	return Options{
@@ -178,7 +200,8 @@ func (opts BytesOptions) decode() (Options, error) {
 		Size:       opts.Size,
 		Animated:   animated,
 		Armor:      armor,
-		HeldItem:   held,
+		RightHand:  right,
+		LeftHand:   left,
 	}, nil
 }
 

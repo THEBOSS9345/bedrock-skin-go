@@ -50,7 +50,9 @@ type Options struct {
 	Camera     *Camera
 	Size       int
 	Armor      Armor
-	HeldItem   image.Image
+	RightHand  Held
+	LeftHand   Held
+	Scale      Scale
 }
 ```
 
@@ -65,8 +67,9 @@ type Options struct {
 | `Parts` | Uses `View` instead. |
 | `Camera` | Uses `View`/`Angle` presets. |
 | `Size` | `DefaultSize` (512). Output is always square. |
-| `Armor` | No armor. One texture per piece; see [equipment.md](equipment.md). |
-| `HeldItem` | Nothing held. An item sprite drawn extruded in the right hand; see [equipment.md](equipment.md#held-items). |
+| `Armor` | No armor. One texture per piece, the elytra included; see [equipment.md](equipment.md). |
+| `RightHand`, `LeftHand` | Nothing held. An item in each hand, placed as the game places it; see [equipment.md](equipment.md#held-items). |
+| `Scale` | Unchanged. The figure's size in the image and per-bone scales; see [equipment.md](equipment.md#scale). |
 
 ### `type Armor` and `func ArmorSet(layer1, layer2 image.Image) Armor`
 
@@ -76,10 +79,40 @@ type Armor struct {
 	Chestplate image.Image // layer 1
 	Leggings   image.Image // layer 2
 	Boots      image.Image // layer 1
+	Elytra     image.Image // elytra.png; takes the chestplate's slot
 }
 ```
 
-A nil piece is not worn. `ArmorSet` wears all four pieces of one material. See [equipment.md](equipment.md).
+A nil piece is not worn. `ArmorSet` wears all four armor pieces of one material. See [equipment.md](equipment.md).
+
+### `type Held` and `type ItemAdjust`
+
+```go
+type Held struct {
+	Item   image.Image // the sprite; nil holds nothing
+	Flat   bool        // held flat, as food; false holds it upright, as a sword
+	Adjust ItemAdjust
+}
+
+type ItemAdjust struct {
+	Offset   [3]float64 // model units, as a bone's position
+	Rotation [3]float64 // degrees about the grip, as a bone's rotation
+	Scale    float64    // about the grip; zero means 1
+}
+```
+
+See [equipment.md](equipment.md#adjusting-an-item).
+
+### `type Scale`
+
+```go
+type Scale struct {
+	Model float64            // the figure's size in the image; zero means 1
+	Parts map[string]float64 // per bone, ignoring case, carrying its children; 0 hides
+}
+```
+
+See [equipment.md](equipment.md#scale).
 
 ### `type Camera`
 
@@ -161,7 +194,8 @@ type BytesOptions struct {
 	Cape       []byte // encoded PNG/JPEG.
 	Animated   []AnimatedTextureBytes // a persona's animation images, encoded: {Type, Texture []byte}
 	Armor      ArmorBytes             // each piece encoded; ArmorSetBytes(layer1, layer2) for a set
-	HeldItem   []byte                 // encoded PNG/JPEG item sprite
+	RightHand  HeldBytes              // Held with the item encoded
+	LeftHand   HeldBytes
 	Identifier string
 	View       View
 	Angle      Angle

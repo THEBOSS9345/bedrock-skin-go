@@ -137,8 +137,9 @@ Take that identifier from the skin's **resource patch**, not from the login pack
 | `Parts` | Explicit bone names, e.g. `[]string{"head", "leftArm"}`. Overrides `View`. |
 | `Camera` | Explicit yaw/pitch/FOV/margin. Overrides `Angle`. |
 | `Size` | Output edge length. Zero means 512. Always square. |
-| `Armor` | Armor worn over the skin, one texture per piece. `ArmorSet(layer1, layer2)` for a full set. |
-| `HeldItem` | An item sprite held in the right hand, drawn extruded as the game draws it. |
+| `Armor` | Armor and elytra worn over the skin, one texture per piece. `ArmorSet(layer1, layer2)` for a full set. |
+| `RightHand`, `LeftHand` | An item held in each hand, placed as the game places it, with an optional `Adjust` to move, turn or resize it. |
+| `Scale` | The figure's size in the image (`Model`) and per-bone scales (`Parts`). |
 
 Bone scoping is ancestry-based, so naming `head` also pulls in whatever is parented under it — a hat, hair, ears, a party hat. Custom-geometry skins work with no special-casing and no hardcoded bone list.
 
@@ -167,19 +168,20 @@ err = opts.WritePNG(w) // straight to an http.ResponseWriter
 
 Every error `Render` returns is bad caller input and has a sentinel — `ErrNoTexture`, `ErrNoGeometry`, `ErrNoMatchingParts`, `ErrEmptyView` — so `errors.Is` classifies them without matching message text.
 
-## Armor and held items
+## Armor, elytra and held items
 
-Dress the skin in armor and put an item in its hand. The textures come from a resource pack, as the game lays them out:
+Dress the skin in armor or an elytra and put an item in either hand. The textures come from a resource pack, as the game lays them out:
 
 ```go
 img, err := bedrockskin.Render(bedrockskin.Options{
-	Texture:  tex,
-	Armor:    bedrockskin.ArmorSet(diamond1, diamond2), // diamond_1.png, diamond_2.png
-	HeldItem: diamondSword,                             // diamond_sword.png
+	Texture:   tex,
+	Armor:     bedrockskin.ArmorSet(diamond1, diamond2), // diamond_1.png, diamond_2.png
+	RightHand: bedrockskin.Held{Item: diamondSword},     // diamond_sword.png
+	LeftHand:  bedrockskin.Held{Item: bread, Flat: true},
 })
 ```
 
-Pieces mix freely (`Armor{Helmet: gold1, Boots: iron1}`), armor and items move with every animation, and the head and avatar views show only the helmet. See [docs/equipment.md](docs/equipment.md).
+Pieces mix freely (`Armor{Helmet: gold1, Boots: iron1}`), and equipment moves with every animation. Items sit where the game puts them; for one that does not suit, `Held.Adjust` moves, turns or resizes it. `Options.Scale` resizes the whole figure or any part of it. See [docs/equipment.md](docs/equipment.md).
 
 ## Animation
 

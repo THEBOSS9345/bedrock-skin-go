@@ -112,6 +112,20 @@ The Go version drew through fauxgl's general `Context` until a profile of a 512p
 
 `raster.go` is that loop specialised to the one shader: it interpolates the texture coordinate alone, reads the texel's bytes directly, and takes no locks. Every operation on the values it keeps is fauxgl's, in fauxgl's order - including a depth test written `!(bz <= depth)` rather than `bz > depth`, which differ for a NaN depth and did differ on 13 pixels of the avatar golden. The colour stays as the texel's bytes because every byte survives `byte/255*255` exactly, alpha below 0.5 is a byte below 128, and below 1 is below 255. The vertex stage and clipping still go through fauxgl. The goldens and every parity fixture are unchanged, and a head render went from 32 ms to 7 ms - level with the Rust port, which had made the same specialisation from the start.
 
+## Why the bottom face is mirrored
+
+A cube's bottom face takes the top face's layout mirrored left to right. The library used to map it as the top face flipped front to back instead, for a long time without anyone seeing: on a skin the bottom faces are the underside of the head, arms and feet, almost never in view, and mostly one colour when they are.
+
+The elytra showed it. Its wings' bottom-face texture is opaque in one corner only, the corner under the bottom row of feathers on the back face. Mapped any other way, that corner landed away from the feathers and drew a plate floating off the wing; vanilla's elytra in game has none. All four orientations were rendered from six angles and the separate pieces in each image counted: only this one left every wing a single piece from every angle.
+
+## Why edges are not stepped
+
+fauxgl evaluates a triangle's three edge functions once at the start of each row and then adds a constant per pixel. Over a long row the rounding in those additions accumulates, and for a thin triangle seen nearly edge-on it was enough to count pixels past the true edge as inside: one-pixel slivers of a face's colour stuck out sideways from its silhouette. They showed on armor and on ordinary skins alike. The rasterizer now evaluates each pixel's edge functions afresh, `screenEdge(s1, s2, p)` with `p` the pixel's centre. Two triangles sharing an edge evaluate it with the same two products in the opposite order, so one gets exactly the negation of the other's value and no pixel on a shared edge is lost or doubled by rounding.
+
+fauxgl also clips every triangle against all six planes of the view volume. A face larger than the image - a head filling an avatar - was clipped as two triangles, each cut along the image border separately, and the new vertices the cuts made on their shared diagonal did not land exactly together. A one-pixel gap opened down the face's diagonal and the layer underneath showed through it. Only the near and far planes need clipping, so only they clip now: a triangle that just runs off the image is drawn whole, and the rasterizer keeps to pixels on the image. That also fixed the pixel index, `y*width + x`, which for an `x` off the image wrapped into the neighbouring row.
+
+Both changed every golden and parity fixture by a few pixels, all on edges; the parity fixtures were regenerated from the Go library and the Rust rasterizer changed to match.
+
 ## Why rasterization is single-threaded
 
 `rasterize` draws one triangle at a time. fauxgl's `DrawTriangles` spawned `runtime.NumCPU()` workers and striped the triangle list across them, which is faster for one isolated render - and it was deliberately never used, for the two reasons below, measured before the rasterizer was specialised.

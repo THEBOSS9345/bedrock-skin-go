@@ -56,7 +56,7 @@ Several things here are deliberate and were each a real bug once. Every one is d
 - **The camera is computed from the bounding box.** A hardcoded distance breaks on any unusual model.
 - **Back faces are drawn on purpose.** Winding order is not guaranteed consistent.
 - **One render rasterizes one triangle at a time, in order.** Drawing order decides depth ties, so it is part of the image. Parallelism is across renders and across animation frames, never inside one image.
-- **`raster.go` must keep fauxgl's arithmetic exactly**, operation for operation - including `!(bz <= depth)`, which a NaN depth tells apart from `bz > depth`. The goldens and the Rust parity fixtures catch any drift.
+- **`raster.go` keeps fauxgl's arithmetic exactly**, operation for operation - including `!(bz <= depth)`, which a NaN depth tells apart from `bz > depth` - except where design-decisions.md#why-edges-are-not-stepped says otherwise: edges are evaluated per pixel, and only the near and far planes clip. Do not "restore" fauxgl's edge stepping or side clipping; both drew visible lines. The goldens and the Rust parity fixtures catch any drift.
 
 ## Conventions
 

@@ -16,10 +16,13 @@ import (
 // pixel - position, normal, colour, clip position - calls the shader through
 // an interface, and takes a mutex per pixel for its parallel mode. This one
 // interpolates the texture coordinate alone and has no locks, which made a
-// head render three times faster. Every operation on the values it keeps is
-// fauxgl's, in fauxgl's order, so the image is bit-identical: the golden and
-// parity fixtures check that. The vertex stage and clipping still run
-// through fauxgl. See docs/design-decisions.md#why-the-rasterizer-is-specialised.
+// head render three times faster. It departs from fauxgl in two places,
+// each fixing a visible defect: edge functions are evaluated exactly per
+// pixel rather than stepped, and only the near and far planes clip. See
+// docs/design-decisions.md#why-edges-are-not-stepped. Everything else is
+// fauxgl's arithmetic in fauxgl's order; the vertex stage and near/far
+// clipping still run through fauxgl. See
+// docs/design-decisions.md#why-the-rasterizer-is-specialised.
 type raster struct {
 	width, height int
 	color         *image.NRGBA
@@ -48,13 +51,24 @@ func (r *raster) drawTriangle(t *fauxgl.Triangle, matrix fauxgl.Matrix, tex *fas
 	v1.Output = matrix.MulPositionW(v1.Position)
 	v2.Output = matrix.MulPositionW(v2.Position)
 	v3.Output = matrix.MulPositionW(v3.Position)
-	if v1.Outside() || v2.Outside() || v3.Outside() {
+	// Only a triangle crossing the near or far plane is clipped. One that
+	// merely runs off the image is drawn whole and rasterize keeps to the
+	// image: clipping its two halves apart left a gap down a face's
+	// diagonal. See docs/design-decisions.md#why-edges-are-not-stepped.
+	if depthOutside(v1) || depthOutside(v2) || depthOutside(v3) {
 		for _, c := range fauxgl.ClipTriangle(fauxgl.NewTriangle(v1, v2, v3)) {
 			r.drawClipped(c.V1, c.V2, c.V3, tex)
 		}
 		return
 	}
 	r.drawClipped(v1, v2, v3, tex)
+}
+
+// depthOutside reports a vertex beyond the near or far plane, or behind the
+// camera.
+func depthOutside(v fauxgl.Vertex) bool {
+	o := v.Output
+	return !(o.W > 0) || o.Z < -o.W || o.Z > o.W
 }
 
 func (r *raster) drawClipped(v0, v1, v2 fauxgl.Vertex, tex *fastImageTexture) {
@@ -82,67 +96,31 @@ func (r *raster) rasterize(v0, v1, v2 fauxgl.Vertex, s0, s1, s2 fauxgl.Vector, t
 	x0, x1 := int(lo.X), int(hi.X)
 	y0, y1 := int(lo.Y), int(hi.Y)
 
-	p := fauxgl.Vector{X: float64(x0) + 0.5, Y: float64(y0) + 0.5}
-	w00 := screenEdge(s1, s2, p)
-	w01 := screenEdge(s2, s0, p)
-	w02 := screenEdge(s0, s1, p)
-	a01 := s1.Y - s0.Y
-	b01 := s0.X - s1.X
-	a12 := s2.Y - s1.Y
-	b12 := s1.X - s2.X
-	a20 := s0.Y - s2.Y
-	b20 := s2.X - s0.X
-
 	ra := 1 / screenEdge(s0, s1, s2)
 	r0 := 1 / v0.Output.W
 	r1 := 1 / v1.Output.W
 	r2 := 1 / v2.Output.W
-	ra12 := 1 / a12
-	ra20 := 1 / a20
-	ra01 := 1 / a01
 
 	t0, t1, t2 := v0.Texture, v1.Texture, v2.Texture
 	pix := r.color.Pix
+	// Only pixels on the image: off it there is nothing to draw, and a
+	// pixel's index would wrap into the next row.
+	x0, x1 = max(x0, 0), min(x1, r.width-1)
+	y0, y1 = max(y0, 0), min(y1, r.height-1)
 	for y := y0; y <= y1; y++ {
-		var d float64
-		d0 := -w00 * ra12
-		d1 := -w01 * ra20
-		d2 := -w02 * ra01
-		if w00 < 0 && d0 > d {
-			d = d0
-		}
-		if w01 < 0 && d1 > d {
-			d = d1
-		}
-		if w02 < 0 && d2 > d {
-			d = d2
-		}
-		d = float64(int(d))
-		if d < 0 {
-			d = 0
-		}
-		w0 := w00 + a12*d
-		w1 := w01 + a20*d
-		w2 := w02 + a01*d
-		wasInside := false
-		for x := x0 + int(d); x <= x1; x++ {
-			b0 := w0 * ra
-			b1 := w1 * ra
-			b2 := w2 * ra
-			w0 += a12
-			w1 += a20
-			w2 += a01
+		for x := x0; x <= x1; x++ {
+			// Each pixel's edge functions are worked out afresh. fauxgl
+			// steps them along the row, and the rounding that accumulates
+			// let thin, edge-on triangles spill slivers past their edges.
+			// See docs/design-decisions.md#why-edges-are-not-stepped.
+			p := fauxgl.Vector{X: float64(x) + 0.5, Y: float64(y) + 0.5}
+			b0 := screenEdge(s1, s2, p) * ra
+			b1 := screenEdge(s2, s0, p) * ra
+			b2 := screenEdge(s0, s1, p) * ra
 			if b0 < 0 || b1 < 0 || b2 < 0 {
-				if wasInside {
-					break
-				}
 				continue
 			}
-			wasInside = true
 			i := y*r.width + x
-			if i < 0 || i >= len(r.depth) {
-				continue
-			}
 			z := b0*s0.Z + b1*s1.Z + b2*s2.Z
 			bz := z + 0 // fauxgl adds its depth bias, zero
 			if bz > r.depth[i] {
@@ -184,8 +162,5 @@ func (r *raster) rasterize(v0, v1, v2 fauxgl.Vertex, s0, s1, s2 fauxgl.Vector, t
 				copy(pix[j:j+4], c)
 			}
 		}
-		w00 += b12
-		w01 += b20
-		w02 += b01
 	}
 }

@@ -58,10 +58,10 @@ func goldenCases() map[string]Options {
 			Size:    96,
 		},
 		"held-item": {
-			Texture:  tex,
-			Camera:   &Camera{Yaw: -60, Pitch: 10},
-			HeldItem: testItemTexture(),
-			Size:     96,
+			Texture:   tex,
+			Camera:    &Camera{Yaw: -60, Pitch: 10},
+			RightHand: Held{Item: testItemTexture()},
+			Size:      96,
 		},
 		"camera-explicit": {
 			Texture: tex,

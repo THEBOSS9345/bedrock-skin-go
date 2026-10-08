@@ -91,7 +91,7 @@ case "north": return Vector{X: -u * hx, Y: v * hy, Z: -hz}  // front, fixed at -
 case "east":  return Vector{X: hx, Y: v * hy, Z: -u * hz}   // fixed at +X
 ```
 
-The pairing of texture rows to geometry rows matters and is easy to get backwards: the **bottom** of a face pairs with the texture's bottom row. Pairing them the other way renders every side face upside down — that was found by rendering, not by reasoning.
+The pairing of texture rows to geometry rows matters and is easy to get backwards: the **bottom** of a face pairs with the texture's bottom row. Pairing them the other way renders every side face upside down — that was found by rendering, not by reasoning. The bottom face is the top face's layout mirrored left to right, as Bedrock lays it out; see [design-decisions.md](design-decisions.md#why-the-bottom-face-is-mirrored).
 
 ### Mirroring
 

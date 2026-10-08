@@ -549,6 +549,96 @@
           ]
         }
       ]
+    },
+    {
+      "description": {
+        "identifier": "geometry.elytra",
+        "texture_width": 64,
+        "texture_height": 32
+      },
+      "bones": [
+        {
+          "name": "root",
+          "pivot": [
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "waist",
+          "pivot": [
+            0,
+            12,
+            0
+          ],
+          "parent": "root"
+        },
+        {
+          "name": "body",
+          "pivot": [
+            0,
+            24,
+            0
+          ],
+          "parent": "waist"
+        },
+        {
+          "name": "left_wing",
+          "pivot": [
+            0,
+            24,
+            0
+          ],
+          "parent": "body",
+          "cubes": [
+            {
+              "origin": [
+                -10,
+                0,
+                0
+              ],
+              "size": [
+                10,
+                20,
+                2
+              ],
+              "uv": [
+                22,
+                0
+              ]
+            }
+          ]
+        },
+        {
+          "name": "right_wing",
+          "pivot": [
+            0,
+            24,
+            0
+          ],
+          "parent": "body",
+          "mirror": true,
+          "cubes": [
+            {
+              "origin": [
+                0,
+                0,
+                0
+              ],
+              "size": [
+                10,
+                20,
+                2
+              ],
+              "uv": [
+                22,
+                0
+              ]
+            }
+          ]
+        }
+      ]
     }
   ]
 }

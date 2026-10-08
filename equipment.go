@@ -2,10 +2,12 @@ package bedrockskin
 
 import (
 	_ "embed"
-	"encoding/json"
 	"fmt"
 	"image"
-	"strconv"
+	"math"
+	"sort"
+
+	"github.com/fogleman/fauxgl"
 )
 
 // Armor is the armor a skin wears: one texture per piece, as a resource pack
@@ -18,6 +20,10 @@ type Armor struct {
 	Chestplate image.Image
 	Leggings   image.Image
 	Boots      image.Image
+	// Elytra is the elytra's texture (textures/models/armor/elytra.png),
+	// worn on the back. It takes the chestplate's slot, as in game: with
+	// both set, only the elytra is worn. See docs/equipment.md#elytra.
+	Elytra image.Image
 }
 
 // ArmorSet is a full set of one material: layer1 for the helmet, chestplate
@@ -50,107 +56,325 @@ func mustParseArmor() map[string]Geometry {
 
 // armorPieces names each piece's model, in the order Armor.textures lists
 // them, which is also the order they are drawn.
-var armorPieces = [4]string{
+var armorPieces = [5]string{
 	"geometry.humanoid.armor.helmet",
 	"geometry.humanoid.armor.chestplate",
 	"geometry.humanoid.armor.leggings",
 	"geometry.humanoid.armor.boots",
+	"geometry.elytra",
 }
 
-func (a Armor) textures() [4]image.Image {
-	return [4]image.Image{a.Helmet, a.Chestplate, a.Leggings, a.Boots}
+// elytraPiece is the elytra's index in armorPieces.
+const elytraPiece = 4
+
+func (a Armor) textures() [5]image.Image {
+	chest := a.Chestplate
+	if a.Elytra != nil {
+		chest = nil
+	}
+	return [5]image.Image{a.Helmet, chest, a.Leggings, a.Boots, a.Elytra}
 }
 
-// Held items are drawn the way the game draws a flat item: every opaque
-// pixel of the sprite becomes a cube one pixel deep. See
+// elytraPose is pose with the elytra's own resting pose on top, vanilla's
+// animation.elytra.default: the body bone scaled up, the wings spread out
+// and back. See docs/equipment.md#elytra.
+func elytraPose(pose Pose) Pose {
+	return pose.with(map[string]BonePose{
+		"body":       {Scale: [3]float64{1.067, 1.067, 1.067}, Scaled: true},
+		"left_wing":  {Position: [3]float64{4.5, 4, -2}, Rotation: [3]float64{15, 0, -13}, Scale: [3]float64{1, 1, 2}, Scaled: true},
+		"right_wing": {Position: [3]float64{-4.5, 4, -2}, Rotation: [3]float64{15, 0, 13}, Scale: [3]float64{1, 1, 2}, Scaled: true},
+	})
+}
+
+// Scale resizes the figure or any of its bones. The zero value changes
+// nothing. A held item has its own scale, in ItemAdjust. See
+// docs/equipment.md#scale.
+type Scale struct {
+	// Model is the figure's size in the image: 2 draws it twice as large,
+	// cropping what no longer fits; 0.5 half as large. Zero means 1. The
+	// camera frames the model whatever its size, so only this changes how
+	// big it looks.
+	Model float64
+	// Parts scales bones by name, ignoring case, each about its own pivot
+	// and carrying everything parented under it: the armor on it, and an
+	// arm's held item. 0 hides a bone.
+	Parts map[string]float64
+}
+
+// partsPose is pose with Scale.Parts applied.
+func (s Scale) partsPose(pose Pose) Pose {
+	if len(s.Parts) == 0 {
+		return pose
+	}
+	extra := make(map[string]BonePose, len(s.Parts))
+	for name, k := range s.Parts {
+		extra[name] = BonePose{Scale: [3]float64{k, k, k}, Scaled: true}
+	}
+	return pose.with(extra)
+}
+
+// then is p with q applied after it: rotations and positions add, scales
+// multiply.
+func (p BonePose) then(q BonePose) BonePose {
+	out := BonePose{
+		Rotation: [3]float64{p.Rotation[0] + q.Rotation[0], p.Rotation[1] + q.Rotation[1], p.Rotation[2] + q.Rotation[2]},
+		Position: [3]float64{p.Position[0] + q.Position[0], p.Position[1] + q.Position[1], p.Position[2] + q.Position[2]},
+		Scale:    p.Scale,
+		Scaled:   p.Scaled || q.Scaled,
+	}
+	switch {
+	case p.Scaled && q.Scaled:
+		out.Scale = [3]float64{p.Scale[0] * q.Scale[0], p.Scale[1] * q.Scale[1], p.Scale[2] * q.Scale[2]}
+	case q.Scaled:
+		out.Scale = q.Scale
+	}
+	return out
+}
+
+// with is a copy of p with each of extra applied after the pose p already
+// gives that bone. A bone's entry is found as Pose.of finds it and stored
+// under the name extra uses, so no other spelling of the name shadows it.
+// extra is applied in name order, so the result never depends on map order.
+func (p Pose) with(extra map[string]BonePose) Pose {
+	out := make(Pose, len(p)+len(extra))
+	for name, bp := range p {
+		out[name] = bp
+	}
+	names := make([]string, 0, len(extra))
+	for name := range extra {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		bp := out.of(name).then(extra[name])
+		for other := range out {
+			if sameBone(other, name) {
+				delete(out, other)
+			}
+		}
+		out[name] = bp
+	}
+	return out
+}
+
+// Held is an item held in one hand. The zero value holds nothing. See
 // docs/equipment.md#held-items.
-const (
-	// heldItemLength is how long the sprite is held, edge to edge, in model
-	// units, whatever its resolution. An arm is 12.
-	heldItemLength = 10.0
-	// heldItemPitch tips the sprite forward from upright, in degrees, so a
-	// sword points ahead of the fist.
-	heldItemPitch = 20.0
-	// heldItemBone names the bone the sprite hangs from. It is not a name
-	// any skin uses, so poses never move it on their own.
-	heldItemBone = "bedrockskin:held_item"
-)
+type Held struct {
+	// Item is the item's sprite, e.g. textures/items/diamond_sword.png,
+	// drawn extruded and placed where the game places it, with the arm
+	// held forward. Nil holds nothing; nor does geometry without the arm.
+	Item image.Image
+	// Flat holds it as the game holds an item that is not a tool or
+	// weapon - food, materials. False holds it upright, as a sword.
+	Flat bool
+	// Adjust moves the item from where the game puts it, for an item that
+	// placement does not suit.
+	Adjust ItemAdjust
+}
 
-// heldItemGeometry builds the model for item held in the right hand of geo:
-// geo's skeleton with no cubes, plus a bone under the right arm carrying a
-// cube per opaque pixel. ok is false when geo has no right arm to hold it.
-func heldItemGeometry(geo Geometry, item image.Image) (Geometry, bool) {
+// ItemAdjust moves a held item from the game's placement, about its grip and
+// in the hand's frame, so it follows the arm. The zero value moves nothing.
+// See docs/equipment.md#adjusting-an-item.
+type ItemAdjust struct {
+	// Offset moves the item, in model units along the model's axes, as a
+	// bone's position moves a bone.
+	Offset [3]float64
+	// Rotation turns the item about its grip, in degrees, as a bone's
+	// rotation turns a bone: a positive X tips its top forward.
+	Rotation [3]float64
+	// Scale resizes the item about its grip. Zero means 1.
+	Scale float64
+}
+
+// hand is what differs between the hands: the bone names, where a model
+// without an item bone grips, and the game's display transforms.
+type hand struct {
+	arm, item string // the model's bones, matched ignoring case
+	bone      string // the item's own bone; no skin uses the name
+	gripX     float64
+	// tool and flat take item space (blocks, the sprite's longer side one
+	// block) to the hand's frame (blocks), as standard right-handed
+	// matrices: tools and weapons upright, anything else flat.
+	tool, flat fauxgl.Matrix
+}
+
+// hands are the right hand and the left, in that order. The left is the
+// game's off hand: not a mirror of the right, but its own offset.
+var hands = [2]hand{
+	{
+		arm: "rightArm", item: "rightItem", bone: "bedrockskin:right_item", gripX: -1,
+		tool: mul(scale(-1, -1, 1), rotY(180), translate(0.1, 0.265, 0), scale(0.625, 0.625, 0.625),
+			rotX(80), rotY(45), spriteItemTransform()),
+		flat: mul(scale(-1, -1, 1), translate(0.3125, 0.1875, -0.1875), scale(0.375, 0.375, 0.375),
+			rotZ(60), rotX(-90), rotZ(20), spriteItemTransform()),
+	},
+	{
+		arm: "leftArm", item: "leftItem", bone: "bedrockskin:left_item", gripX: 1,
+		tool: mul(scale(-1, -1, 1), translate(-0.125, 0, 0), rotY(180), translate(0, 0.265, 0), scale(0.625, 0.625, 0.625),
+			rotX(80), rotY(45), spriteItemTransform()),
+		flat: mul(scale(-1, -1, 1), translate(-0.125, 0, 0), translate(0.3125, 0.1875, -0.1875), scale(0.375, 0.375, 0.375),
+			rotZ(60), rotX(-90), rotZ(20), spriteItemTransform()),
+	},
+}
+
+// toModel takes item space to model units relative to the grip, in the
+// geometry's frame: the hand's display, X mirrored and scaled by 16, then
+// the caller's adjustment.
+func (h Held) toModel(side hand) fauxgl.Matrix {
+	display := side.tool
+	if h.Flat {
+		display = side.flat
+	}
+	k := h.Adjust.Scale
+	if k == 0 {
+		k = 1
+	}
+	a := h.Adjust
+	return translate(a.Offset[0], a.Offset[1], a.Offset[2]).
+		Mul(rotationMatrix(a.Rotation[:])).
+		Mul(scale(k, k, k)).
+		Mul(scale(-16, 16, 16)).
+		Mul(display)
+}
+
+// spriteItemTransform is the game's legacy item transform, applied before
+// either display.
+func spriteItemTransform() fauxgl.Matrix {
+	return mul(scale(1.5, 1.5, 1.5), rotY(50), rotZ(335), translate(0.075, -0.245, -0.1))
+}
+
+func mul(ms ...fauxgl.Matrix) fauxgl.Matrix {
+	out := ms[0]
+	for _, m := range ms[1:] {
+		out = out.Mul(m)
+	}
+	return out
+}
+
+func translate(x, y, z float64) fauxgl.Matrix {
+	return fauxgl.Matrix{X00: 1, X03: x, X11: 1, X13: y, X22: 1, X23: z, X33: 1}
+}
+
+func scale(x, y, z float64) fauxgl.Matrix {
+	return fauxgl.Matrix{X00: x, X11: y, X22: z, X33: 1}
+}
+
+// rotX, rotY and rotZ are the standard right-handed rotations, in degrees -
+// not fauxgl's Rotate, which turns the other way (see rotationMatrix).
+func rotX(deg float64) fauxgl.Matrix {
+	s, c := math.Sin(deg*degToRad), math.Cos(deg*degToRad)
+	return fauxgl.Matrix{X00: 1, X11: c, X12: -s, X21: s, X22: c, X33: 1}
+}
+
+func rotY(deg float64) fauxgl.Matrix {
+	s, c := math.Sin(deg*degToRad), math.Cos(deg*degToRad)
+	return fauxgl.Matrix{X00: c, X02: s, X11: 1, X20: -s, X22: c, X33: 1}
+}
+
+func rotZ(deg float64) fauxgl.Matrix {
+	s, c := math.Sin(deg*degToRad), math.Cos(deg*degToRad)
+	return fauxgl.Matrix{X00: c, X01: -s, X10: s, X11: c, X22: 1, X33: 1}
+}
+
+// holdingPose is pose with the hand's arm held out as vanilla's
+// animation.player.holding holds it: the arm's X turn becomes this*0.5 - 18,
+// half its swing and 18 degrees forward. arm is the model's name for it.
+func (h hand) holdingPose(pose Pose, arm string) Pose {
+	x := pose.of(arm).Rotation[0]
+	return pose.with(map[string]BonePose{h.arm: {Rotation: [3]float64{-x*0.5 - 18, 0, 0}}})
+}
+
+// skeleton is geo's skeleton with no cubes, plus a bone at the hand's grip
+// for the item: the model's item bone, else where the standard arm's would
+// be. arm is the model's name for the arm; ok is false when geo has none.
+func (h hand) skeleton(geo Geometry) (skel Geometry, arm string, ok bool) {
 	byName := boneMap(geo)
-	var arm, grip Bone
+	var armBone, grip Bone
 	var hasArm, hasGrip bool
 	for _, b := range geo.Bones {
-		if !hasArm && sameBone(b.Name, "rightArm") {
-			arm, hasArm = b, true
+		if !hasArm && sameBone(b.Name, h.arm) {
+			armBone, hasArm = b, true
 		}
-		if !hasGrip && sameBone(b.Name, "rightItem") {
+		if !hasGrip && sameBone(b.Name, h.item) {
 			grip, hasGrip = b, true
 		}
 	}
 	if hasGrip {
-		if parent, ok := byName[grip.Parent]; ok {
-			arm, hasArm = parent, true
+		if parent, found := byName[grip.Parent]; found {
+			armBone, hasArm = parent, true
 		} else {
 			hasGrip = false
 		}
 	}
 	if !hasArm {
-		return Geometry{}, false
+		return Geometry{}, "", false
 	}
-	// Where the game's rightItem sits on a standard arm, when geo has none.
-	pivot := [3]float64{at(arm.Pivot, 0) - 1, at(arm.Pivot, 1) - 7, at(arm.Pivot, 2) + 1}
+	pivot := []float64{at(armBone.Pivot, 0) + h.gripX, at(armBone.Pivot, 1) - 7, at(armBone.Pivot, 2) + 1}
 	if hasGrip {
-		pivot = [3]float64{at(grip.Pivot, 0), at(grip.Pivot, 1), at(grip.Pivot, 2)}
+		pivot = []float64{at(grip.Pivot, 0), at(grip.Pivot, 1), at(grip.Pivot, 2)}
 	}
-
-	tex := newFastImageTexture(item)
-	w, h := float64(tex.width), float64(tex.height)
-	s := heldItemLength / w
-	// The grip: tool sprites put the handle near the bottom-left corner.
-	gx, gy := w*3/16, h*13/16
-
-	var cubes []Cube
-	for y := 0; y < tex.height; y++ {
-		for x := 0; x < tex.width; x++ {
-			// Only pixels that pass the shader's alpha test (see
-			// alphaThreshold): alpha/255 >= 0.5 is alpha >= 128.
-			if tex.pix[(y*tex.width+x)*4+3] < 128 {
-				continue
-			}
-			cubes = append(cubes, Cube{
-				Origin: []float64{
-					pivot[0] - s/2,
-					pivot[1] + (gy-float64(y)-1)*s,
-					pivot[2] - (float64(x)-gx+1)*s,
-				},
-				Size: []float64{s, s, s},
-				UV:   pixelUV(x, y),
-			})
-		}
-	}
-
 	bones := make([]Bone, 0, len(geo.Bones)+1)
 	for _, b := range geo.Bones {
 		bones = append(bones, Bone{Name: b.Name, Parent: b.Parent, Pivot: b.Pivot, Rotation: b.Rotation})
 	}
-	bones = append(bones, Bone{
-		Name:     heldItemBone,
-		Parent:   arm.Name,
-		Pivot:    pivot[:],
-		Rotation: []float64{heldItemPitch, 0, 0},
-		Cubes:    cubes,
-	})
-	return Geometry{Identifier: heldItemBone, TextureWidth: w, TextureHeight: h, Bones: bones}, true
+	bones = append(bones, Bone{Name: h.bone, Parent: armBone.Name, Pivot: pivot})
+	return Geometry{Identifier: h.bone, Bones: bones}, armBone.Name, true
 }
 
-// pixelUV maps all six faces of a cube to the middle of one texel, so nearest
-// sampling never strays into a neighbour at the cube's edges.
-func pixelUV(x, y int) json.RawMessage {
-	face := `{"uv":[` + strconv.Itoa(x) + `.25,` + strconv.Itoa(y) + `.25],"uv_size":[0.5,0.5]}`
-	return json.RawMessage(`{"north":` + face + `,"east":` + face + `,"south":` + face +
-		`,"west":` + face + `,"up":` + face + `,"down":` + face + `}`)
+// buildHeldItem builds the sprite's triangles: a front and a back face over
+// the whole sprite, and an edge strip along every side of an opaque texel
+// that has no opaque neighbour there. Opaque means passing the shader's
+// alpha test (see alphaThreshold): alpha/255 >= 0.5, a byte of 128 or more.
+func buildHeldItem(item image.Image, toModel, world fauxgl.Matrix) []*fauxgl.Triangle {
+	tex := newFastImageTexture(item)
+	w, h := tex.width, tex.height
+	if w == 0 || h == 0 {
+		return nil
+	}
+	t := 1 / float64(max(w, h))
+	vertex := func(x, y, z, u, v float64) fauxgl.Vertex {
+		p := world.MulPosition(toModel.MulPosition(fauxgl.Vector{X: x, Y: y, Z: z}))
+		p.X = -p.X
+		// V is pre-flipped, as in addCube.
+		return fauxgl.Vertex{Position: p, Texture: fauxgl.Vector{X: u, Y: 1 - v}}
+	}
+	var tris []*fauxgl.Triangle
+	quad := func(a, b, c, d fauxgl.Vertex) {
+		tris = append(tris, fauxgl.NewTriangle(a, b, c), fauxgl.NewTriangle(a, c, d))
+	}
+	// Column c spans X from -c*t to -(c+1)*t, row r spans Y from (h-r)*t
+	// down to (h-r-1)*t, and the slab runs from Z=0 back to Z=-t.
+	x0, x1, y1 := 0.0, -float64(w)*t, float64(h)*t
+	for _, z := range []float64{0, -t} {
+		quad(vertex(x0, 0, z, 0, 1), vertex(x1, 0, z, 1, 1), vertex(x1, y1, z, 1, 0), vertex(x0, y1, z, 0, 0))
+	}
+	opaque := func(c, r int) bool {
+		return c >= 0 && r >= 0 && c < w && r < h && tex.pix[(r*w+c)*4+3] >= 128
+	}
+	for r := 0; r < h; r++ {
+		for c := 0; c < w; c++ {
+			if !opaque(c, r) {
+				continue
+			}
+			u, v := (float64(c)+0.5)/float64(w), (float64(r)+0.5)/float64(h)
+			left, right := -float64(c)*t, -float64(c+1)*t
+			top, bottom := float64(h-r)*t, float64(h-r-1)*t
+			edge := func(xa, ya, xb, yb float64) {
+				quad(vertex(xa, ya, 0, u, v), vertex(xa, ya, -t, u, v), vertex(xb, yb, -t, u, v), vertex(xb, yb, 0, u, v))
+			}
+			if !opaque(c-1, r) {
+				edge(left, bottom, left, top)
+			}
+			if !opaque(c+1, r) {
+				edge(right, bottom, right, top)
+			}
+			if !opaque(c, r-1) {
+				edge(left, top, right, top)
+			}
+			if !opaque(c, r+1) {
+				edge(left, bottom, right, bottom)
+			}
+		}
+	}
+	return tris
 }

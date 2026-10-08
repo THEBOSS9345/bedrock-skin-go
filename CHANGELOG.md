@@ -9,11 +9,24 @@ with the same features in both.
   texture per piece as a resource pack lays them out, on vanilla's armor
   model. `ArmorSet(layer1, layer2)` wears a full set; `BytesOptions.Armor`
   takes them encoded (`ArmorBytes`, `ArmorSetBytes`).
-- Held items: `Options.HeldItem` puts an item sprite in the right hand,
-  extruded one pixel deep as the game draws it, gripped at the model's
-  `rightItem`. `BytesOptions.HeldItem` takes it encoded.
-- Both move with every pose and animation, and head and avatar views show
-  only the helmet. Renders without them are unchanged.
+- Elytra: `Armor.Elytra`, on vanilla's elytra model in its resting pose,
+  in the chestplate's slot.
+- Held items: `Options.RightHand` and `LeftHand` each hold an item sprite
+  (`Held`), extruded one texel deep and placed where the game places it,
+  from the model's `rightItem` or `leftItem`, with the arm held forward as
+  vanilla's holding animation holds it. Tools and weapons are held upright;
+  `Held.Flat` holds anything else flat. `Held.Adjust` (`ItemAdjust`) moves,
+  turns or resizes an item the game's placement does not suit.
+  `BytesOptions` takes them encoded (`HeldBytes`).
+- `Options.Scale`: the figure's size in the image, and per-bone scales that
+  carry armor and items with them.
+- Equipment moves with every pose and animation, and head and avatar views
+  show only the helmet.
+- Fixed: one-pixel slivers along the edges of thin, edge-on faces, and a
+  gap down the diagonal of a face larger than the image, both inherited
+  from fauxgl's rasterizer; pixels off the image's side wrapping into the
+  next row; and every cube's bottom face mapped the wrong way round. Every
+  render can differ by a few edge pixels from v0.2.2.
 
 ## v0.2.2
 

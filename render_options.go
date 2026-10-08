@@ -103,11 +103,13 @@ type Options struct {
 	// Armor is the armor worn over the skin. The zero value wears none.
 	// See docs/equipment.md.
 	Armor Armor
-	// HeldItem is an item sprite held in the right hand, e.g.
-	// textures/items/diamond_sword.png, drawn extruded as the game draws
-	// it. Nil holds nothing; nor does geometry with no right arm. See
-	// docs/equipment.md#held-items.
-	HeldItem image.Image
+	// RightHand and LeftHand are the items held in each hand. The zero
+	// value holds nothing. See docs/equipment.md#held-items.
+	RightHand Held
+	LeftHand  Held
+	// Scale resizes the figure or any bone. The zero value changes
+	// nothing. See docs/equipment.md#scale.
+	Scale Scale
 }
 
 // AnimatedType is the kind of a skin animation, numbered as the Bedrock
@@ -213,8 +215,8 @@ type scene struct {
 }
 
 // layer is triangles drawn with one texture. A scene draws its layers in
-// order: the body, any animated persona parts, the armor, the held item,
-// then the cape.
+// order: the body, any animated persona parts, the armor, the right hand's
+// item, the left hand's, then the cape.
 type layer struct {
 	triangles []*fauxgl.Triangle
 	texture   image.Image
@@ -254,6 +256,25 @@ func (opts Options) scene(pose Pose) (scene, error) {
 	view := opts.View
 	if view == "" {
 		view = ViewBody
+	}
+
+	// Part scales and holding an item change the pose of the skin, its
+	// armor and the item alike.
+	pose = opts.Scale.partsPose(pose)
+	type holding struct {
+		skel Geometry
+		side hand
+		held Held
+	}
+	var held []holding
+	for i, h := range [2]Held{opts.RightHand, opts.LeftHand} {
+		if h.Item == nil {
+			continue
+		}
+		if skel, arm, ok := hands[i].skeleton(geo); ok {
+			pose = hands[i].holdingPose(pose, arm)
+			held = append(held, holding{skel, hands[i], h})
+		}
 	}
 
 	// No cubes and no poly mesh anywhere: bones with nothing to draw. A
@@ -303,11 +324,16 @@ func (opts Options) scene(pose Pose) (scene, error) {
 			continue
 		}
 		g := armorGeometry[armorPieces[i]]
-		layers = append(layers, layer{buildTriangles(g, include(g), pose), tex})
+		p := pose
+		if i == elytraPiece {
+			p = elytraPose(pose)
+		}
+		layers = append(layers, layer{buildTriangles(g, include(g), p), tex})
 	}
-	if opts.HeldItem != nil {
-		if g, ok := heldItemGeometry(geo, opts.HeldItem); ok {
-			layers = append(layers, layer{buildTriangles(g, include(g), pose), opts.HeldItem})
+	for _, h := range held {
+		if in := include(h.skel); in == nil || in(h.side.bone) {
+			world := boneWorldMatrices(h.skel, pose)[h.side.bone]
+			layers = append(layers, layer{buildHeldItem(h.held.Item, h.held.toModel(h.side), world), h.held.Item})
 		}
 	}
 	if len(opts.Parts) == 0 {
@@ -333,6 +359,11 @@ func (opts Options) scene(pose Pose) (scene, error) {
 			margin *= 1.25
 		}
 		yaw, pitch = angleToYawPitch(angle)
+	}
+	if opts.Scale.Model > 0 {
+		// The camera fits the model's bounds; less room around them draws
+		// it larger.
+		margin /= opts.Scale.Model
 	}
 
 	// The cape is built before the camera, not after: it hangs behind and

@@ -94,7 +94,9 @@ func faceCorner(face string, u, v, hx, hy, hz float64) fauxgl.Vector {
 	case "up":
 		return fauxgl.Vector{X: u * hx, Y: hy, Z: v * hz}
 	case "down":
-		return fauxgl.Vector{X: u * hx, Y: -hy, Z: -v * hz}
+		// "up" mirrored left to right, as Bedrock lays the bottom face out.
+		// See docs/design-decisions.md#why-the-bottom-face-is-mirrored.
+		return fauxgl.Vector{X: -u * hx, Y: -hy, Z: v * hz}
 	case "north":
 		return fauxgl.Vector{X: -u * hx, Y: v * hy, Z: -hz}
 	case "south":
