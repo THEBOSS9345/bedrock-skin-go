@@ -1,6 +1,6 @@
 # bedrock-skin
 
-**Render Minecraft Bedrock skins to PNG and GIF, in pure Go.** 3D bodies, heads and avatars, capes, slim and wide arms, custom geometry, persona skins, animations from Blockbench files, and a detector for invisible skins.
+**Render Minecraft Bedrock skins to PNG and GIF, in pure Go.** 3D bodies, heads and avatars, capes, slim and wide arms, custom geometry, persona skins, armor, elytra and held tools, animations from Blockbench files, and a detector for invisible skins.
 
 <p align="center">
   <img src="docs/images/body-front.png" width="160" alt="A skin rendered full body, front on">
@@ -20,7 +20,7 @@ go get github.com/THEBOSS9345/bedrock-skin-go
 import bedrockskin "github.com/THEBOSS9345/bedrock-skin-go"
 ```
 
-The package is `bedrockskin`. A Rust version, `bedrock-skin`, is on the way, built to render the same images.
+The package is `bedrockskin`. The Rust version, [`bedrock-skin`](https://crates.io/crates/bedrock-skin), renders the same images, pixel for pixel.
 
 ## Quick start
 
@@ -140,6 +140,7 @@ Take that identifier from the skin's **resource patch**, not from the login pack
 | `Armor` | Armor and elytra worn over the skin, one texture per piece. `ArmorSet(layer1, layer2)` for a full set. |
 | `RightHand`, `LeftHand` | An item held in each hand, placed as the game places it, with an optional `Adjust` to move, turn or resize it. |
 | `Scale` | The figure's size in the image (`Model`) and per-bone scales (`Parts`). |
+| `HideSkin` | Draws the equipment alone, without the skin; `Texture` may then be nil. |
 
 Bone scoping is ancestry-based, so naming `head` also pulls in whatever is parented under it — a hat, hair, ears, a party hat. Custom-geometry skins work with no special-casing and no hardcoded bone list.
 
