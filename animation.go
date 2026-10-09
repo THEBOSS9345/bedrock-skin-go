@@ -264,11 +264,12 @@ func (f *Frames) Draw(i, size int, cam *Camera) image.Image {
 		}
 		if cam.Margin > 0 {
 			margin = cam.Margin
-		}
-		if f.scale > 0 {
-			// scene() divides a camera's margin by Scale.Model, so a refit
-			// has to as well or a scaled model frames differently.
-			margin /= f.scale
+			if f.scale > 0 {
+				// scene() divides a camera's margin by Scale.Model, so a
+				// refit has to as well or a scaled model frames differently.
+				// The prepared margin is already divided.
+				margin /= f.scale
+			}
 		}
 		yaw, pitch = cam.Yaw, cam.Pitch
 	}

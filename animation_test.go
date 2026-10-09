@@ -311,6 +311,23 @@ func TestPrepareFramesDraw(t *testing.T) {
 			t.Errorf("scaled frame %d drawn alone differs from RenderFrames", i)
 		}
 	}
+	// A camera without a margin keeps the prepared one, which scene() has
+	// already divided by Scale.Model: it must not be divided again.
+	noMargin := &Camera{Yaw: 20, Pitch: 10, FOV: 35}
+	scaled.Camera = noMargin
+	nf, err := PrepareFrames(scaled)
+	if err != nil {
+		t.Fatal(err)
+	}
+	noMarginFrames, err := RenderFrames(scaled)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range noMarginFrames {
+		if got := nf.Draw(i, 64, noMargin); !bytes.Equal(got.(*image.NRGBA).Pix, noMarginFrames[i].(*image.NRGBA).Pix) {
+			t.Errorf("scaled frame %d with no camera margin differs from RenderFrames", i)
+		}
+	}
 	if _, err := PrepareFrames(AnimationOptions{Options: Options{Texture: testTexture()}}); !errors.Is(err, ErrNoAnimation) {
 		t.Errorf("no animation: %v, want ErrNoAnimation", err)
 	}
