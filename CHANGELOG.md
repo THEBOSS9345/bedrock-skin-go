@@ -3,7 +3,7 @@
 Versions match bedrock-skin-rs: the same version renders the same images
 with the same features in both.
 
-## Unreleased
+## v0.2.5
 
 - Fix: `Frames.Draw` with a camera that leaves the margin at 0 divided the
   prepared margin by `Scale.Model` a second time, so a scaled model drew at the
