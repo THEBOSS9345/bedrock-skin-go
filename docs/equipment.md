@@ -56,6 +56,10 @@ Armor is drawn on its own model, not fitted to the skin's: a custom model with i
 
 A cape rests against the back, 2 to 3 units behind the body's centre, but a chestplate's body reaches 3.01. Left there, the cape would be drawn inside the chestplate and hidden by it. With a chestplate worn, the cape is moved 1.1 units further back, as Java Edition does, so it hangs outside the armor. An elytra takes the chestplate's place and leaves the cape where it is.
 
+### Capes follow the skin
+
+The cape is its own entry, `geometry.cape`, with its own short chain of bones: waist, body, cape. The skin's chain goes further up, to a `root` that animations move to swim, sit, sneak or spin. A cape left on its own chain stayed where the skin had been. So the cape is hung on the skin's skeleton: the bones the skin has above the cape's chain are added to it, without their cubes, and a pose moves both alike.
+
 ### Elytra
 
 `Armor.Elytra` is vanilla's `geometry.elytra` - two 10x20x2 wings hung from the body - in `armor_geometry.json` on the same player skeleton. On top of the skin's pose it takes the elytra's resting pose, vanilla's `animation.elytra.default`: the body bone scaled by 1.067, and each wing moved 4.5 out, 4 up and 2 back, turned 15 degrees back and 13 out, and doubled in depth.

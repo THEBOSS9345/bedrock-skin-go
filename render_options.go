@@ -392,7 +392,7 @@ func (opts Options) scene(pose Pose) (scene, error) {
 			if opts.Armor.textures()[1] != nil {
 				p = chestplateCapePose(pose)
 			}
-			capeTriangles = buildCapeTriangles(capeGeo, p)
+			capeTriangles = buildCapeTriangles(capeGeo, geo, p)
 		}
 	}
 

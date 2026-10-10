@@ -272,10 +272,52 @@ func rasterize(layers []layer, eye, center fauxgl.Vector, fovDegrees float64, si
 	return r.color
 }
 
-// buildCapeTriangles builds the cape mesh. A cape entry is its own
-// self-contained bone chain (body -> waist -> cape), so it positions itself
-// from parent names within capeGeo alone.
-func buildCapeTriangles(capeGeo Geometry, pose Pose) []*fauxgl.Triangle {
+// buildCapeTriangles builds the cape mesh. A cape entry is its own bone
+// chain (waist -> body -> cape), hung on skel's skeleton by capeOnSkeleton so
+// a pose moves it with the skin.
+func buildCapeTriangles(capeGeo, skel Geometry, pose Pose) []*fauxgl.Triangle {
 	include := func(name string) bool { return name == "cape" }
-	return buildTriangles(capeGeo, include, pose)
+	return buildTriangles(capeOnSkeleton(capeGeo, skel), include, pose)
+}
+
+// capeOnSkeleton is capeGeo with the bones skel has above it added, without
+// their cubes. The cape's chain stops at the waist, while the skin's goes on
+// up to a root that animations move - swimming, sitting, sneaking - so a
+// cape left on its own chain stayed where the skin had been. See
+// docs/equipment.md#capes-follow-the-skin.
+func capeOnSkeleton(capeGeo, skel Geometry) Geometry {
+	have := make(map[string]bool, len(capeGeo.Bones))
+	for _, b := range capeGeo.Bones {
+		have[b.Name] = true
+	}
+	skelBones := make(map[string]Bone, len(skel.Bones))
+	for _, b := range skel.Bones {
+		if _, dup := skelBones[b.Name]; !dup {
+			skelBones[b.Name] = b
+		}
+	}
+	bones := append([]Bone(nil), capeGeo.Bones...)
+	for i := range capeGeo.Bones {
+		b := bones[i]
+		if b.Parent != "" && have[b.Parent] {
+			continue
+		}
+		sb, ok := skelBones[b.Name]
+		if !ok || sb.Parent == "" || have[sb.Parent] {
+			continue
+		}
+		bones[i].Parent = sb.Parent
+		for name := sb.Parent; name != "" && !have[name]; {
+			up, ok := skelBones[name]
+			if !ok {
+				break
+			}
+			have[name] = true
+			bones = append(bones, Bone{Name: up.Name, Parent: up.Parent, Pivot: up.Pivot, Rotation: up.Rotation})
+			name = up.Parent
+		}
+	}
+	out := capeGeo
+	out.Bones = bones
+	return out
 }

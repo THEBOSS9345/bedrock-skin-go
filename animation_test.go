@@ -3,11 +3,14 @@ package bedrockskin
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"image"
 	"image/gif"
 	"math"
 	"strings"
 	"testing"
+
+	"github.com/fogleman/fauxgl"
 )
 
 func near(a, b float64) bool { return math.Abs(a-b) < 1e-6 }
@@ -445,6 +448,38 @@ func TestParallelFramesMatchSerial(t *testing.T) {
 	for i := range a {
 		if !bytes.Equal(a[i].(*image.NRGBA).Pix, b[i].(*image.NRGBA).Pix) {
 			t.Fatalf("frame %d differs", i)
+		}
+	}
+}
+
+// The cape's own chain stops at the waist, while the skin's goes up to a
+// root that animations move. A cape left on its own chain stayed behind
+// whenever root moved - swimming, sitting, sneaking - so it is hung on the
+// skin's skeleton, and must move exactly as the skin's body does.
+func TestCapeFollowsTheSkinInEveryAnimation(t *testing.T) {
+	geos := DefaultGeometry()
+	skin, _ := SelectGeometry(geos, "geometry.humanoid.custom")
+	capeGeo, _ := FindCape(geos)
+	cape := capeOnSkeleton(capeGeo, skin)
+	check := func(name string, pose Pose) {
+		t.Helper()
+		want := boneWorldMatrices(skin, pose)["body"]
+		got := boneWorldMatrices(cape, pose)["body"]
+		for _, p := range []fauxgl.Vector{{X: 0, Y: 24, Z: 2}, {X: 0, Y: 12, Z: 2}, {X: 4, Y: 24, Z: -2}} {
+			if d := want.MulPosition(p).Sub(got.MulPosition(p)).Length(); d > 1e-9 {
+				t.Errorf("%s: the cape is %.2f away from the body", name, d)
+				return
+			}
+		}
+	}
+	for _, m := range Motions() {
+		for i := 0; i < 8; i++ {
+			check(fmt.Sprintf("%s at %d/8", m, i), m.Pose(m.Duration()*float64(i)/8))
+		}
+	}
+	for name, a := range ExampleAnimations() {
+		for i := 0; i < 8; i++ {
+			check(fmt.Sprintf("%s at %d/8", name, i), a.Pose(a.Duration()*float64(i)/8))
 		}
 	}
 }
