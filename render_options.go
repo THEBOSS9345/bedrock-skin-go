@@ -388,7 +388,11 @@ func (opts Options) scene(pose Pose) (scene, error) {
 		// mesh with the skin texture, once here with the cape texture -
 		// leaves the two z-fighting.
 		if capeGeo, found := capeGeometryFor(geos, geo); found {
-			capeTriangles = buildCapeTriangles(capeGeo, pose)
+			p := pose
+			if opts.Armor.textures()[1] != nil {
+				p = chestplateCapePose(pose)
+			}
+			capeTriangles = buildCapeTriangles(capeGeo, p)
 		}
 	}
 

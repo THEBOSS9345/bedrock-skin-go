@@ -476,3 +476,36 @@ func TestRenderItem(t *testing.T) {
 		t.Fatal("RenderItemBytes differs from RenderItem")
 	}
 }
+
+// A chestplate reaches further back than a cape rests, so a cape left in place
+// was drawn inside it and hidden. Seen from behind, it must show as much over
+// a chestplate as without one.
+func TestCapeHangsOutsideTheChestplate(t *testing.T) {
+	cape := image.NewNRGBA(image.Rect(0, 0, 64, 32))
+	for i := range cape.Pix {
+		cape.Pix[i] = []uint8{230, 0, 0, 255}[i%4]
+	}
+	behind := &Camera{Yaw: 180}
+	red := func(img image.Image) int {
+		n := 0
+		b := img.Bounds()
+		for y := b.Min.Y; y < b.Max.Y; y++ {
+			for x := b.Min.X; x < b.Max.X; x++ {
+				c := color.NRGBAModel.Convert(img.At(x, y)).(color.NRGBA)
+				if c.A > 0 && int(c.R) > int(c.G)+100 && int(c.R) > int(c.B)+100 {
+					n++
+				}
+			}
+		}
+		return n
+	}
+	tex := testTexture()
+	bare := red(renderOrFail(t, Options{Texture: tex, Cape: cape, Camera: behind, Size: 96}))
+	armored := red(renderOrFail(t, Options{Texture: tex, Cape: cape, Camera: behind, Size: 96, Armor: Armor{Chestplate: testArmorTexture()}}))
+	if bare == 0 {
+		t.Fatal("the cape did not show from behind")
+	}
+	if armored*10 < bare*9 {
+		t.Errorf("cape over a chestplate shows %d pixels, %d without one: the chestplate hides it", armored, bare)
+	}
+}

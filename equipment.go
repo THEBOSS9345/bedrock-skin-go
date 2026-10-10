@@ -87,6 +87,20 @@ func elytraPose(pose Pose) Pose {
 	})
 }
 
+// chestplateCapeOffset is how far back a cape hangs over a chestplate, in
+// model units. The chestplate's body is the body grown by 1.01 on every side,
+// so a cape left where it rests on the back is drawn inside it. Java Edition
+// moves the cape back by the same amount when a chestplate is worn. See
+// docs/equipment.md#capes-over-a-chestplate.
+const chestplateCapeOffset = 1.1
+
+// chestplateCapePose is pose with the cape moved back clear of a chestplate.
+func chestplateCapePose(pose Pose) Pose {
+	return pose.with(map[string]BonePose{
+		"cape": {Position: [3]float64{0, 0, chestplateCapeOffset}},
+	})
+}
+
 // Scale resizes the figure or any of its bones. The zero value changes
 // nothing. A held item has its own scale, in ItemAdjust. See
 // docs/equipment.md#scale.

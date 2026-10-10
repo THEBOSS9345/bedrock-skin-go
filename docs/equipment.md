@@ -52,6 +52,10 @@ The bones hang on the player model's own skeleton (`root` > `waist` > `body` > h
 
 Armor is drawn on its own model, not fitted to the skin's: a custom model with its arms moved keeps vanilla-placed armor, as it does in game. Slim skins wear the same armor as wide ones, as in game.
 
+### Capes over a chestplate
+
+A cape rests against the back, 2 to 3 units behind the body's centre, but a chestplate's body reaches 3.01. Left there, the cape would be drawn inside the chestplate and hidden by it. With a chestplate worn, the cape is moved 1.1 units further back, as Java Edition does, so it hangs outside the armor. An elytra takes the chestplate's place and leaves the cape where it is.
+
 ### Elytra
 
 `Armor.Elytra` is vanilla's `geometry.elytra` - two 10x20x2 wings hung from the body - in `armor_geometry.json` on the same player skeleton. On top of the skin's pose it takes the elytra's resting pose, vanilla's `animation.elytra.default`: the body bone scaled by 1.067, and each wing moved 4.5 out, 4 up and 2 back, turned 15 degrees back and 13 out, and doubled in depth.

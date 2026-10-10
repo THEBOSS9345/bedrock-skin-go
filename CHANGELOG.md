@@ -3,6 +3,13 @@
 Versions match bedrock-skin-rs: the same version renders the same images
 with the same features in both.
 
+## v0.2.6
+
+- Fix: a cape worn with a chestplate was drawn inside it and hidden, since the
+  chestplate reaches further back than the cape rests. With a chestplate worn,
+  the cape now hangs 1.1 units further back, outside the armor, as Java
+  Edition moves it.
+
 ## v0.2.5
 
 - Fix: `Frames.Draw` with a camera that leaves the margin at 0 divided the
